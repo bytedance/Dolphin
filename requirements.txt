@@ -2,7 +2,7 @@ albumentations==1.4.0
 numpy==1.24.4
 omegaconf==2.3.0
 opencv-python==4.11.0.86
-opencv-python-headless==4.5.5.64
+opencv-python-headless==4.11.0.86
 pillow==9.3.0
 timm==0.5.4
 torch==2.1.0
