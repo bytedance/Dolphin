@@ -85,6 +85,33 @@ Try our demo on [Demo-Dolphin](http://115.190.42.15:8888/dolphin/).
    huggingface-cli download ByteDance/Dolphin --local-dir ./hf_model
    ```
 
+## 🚀 Running the API Service
+
+This project includes a FastAPI application to serve the DOLPHIN model over an HTTP API.
+
+1.  **Ensure Dependencies are Installed**:
+    Make sure you have installed all necessary dependencies, including `fastapi` and `uvicorn`, by running:
+    ```bash
+    pip install -r requirements.txt
+    ```
+    The `requirements.txt` file was updated during the API setup to include these.
+
+2.  **Start the Uvicorn Server**:
+    From the root of the project directory (where `api.py` is located), run the following command:
+    ```bash
+    uvicorn api:app --reload
+    ```
+    - `api:app` tells Uvicorn to find the `app` object (your FastAPI instance) in the `api.py` file.
+    - `--reload` enables auto-reloading, so the server will restart automatically when you make changes to the code. This is useful for development. For production, you might omit this.
+
+3.  **Access the API**:
+    Once the server is running, you can access it at:
+    -   **API root**: `http://127.0.0.1:8000/`
+    -   **Interactive API documentation (Swagger UI)**: `http://127.0.0.1:8000/docs`
+    -   **Alternative API documentation (ReDoc)**: `http://127.0.0.1:8000/redoc`
+
+    You can use the `/docs` endpoint to interactively test the API, including the file upload and processing endpoint.
+
 ## ⚡ Inference
 
 Dolphin provides two inference frameworks with support for two parsing granularities:
