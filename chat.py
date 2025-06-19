@@ -93,7 +93,19 @@ class DOLPHIN:
             ckpt = try_rename_lagacy_weights(ckpt)
             self.model.load_state_dict(ckpt, strict=True)
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        # Determine the best available device:
+        # 1. CUDA (NVIDIA GPUs)
+        # 2. Apple Silicon / macOS Metal Performance Shaders (MPS)
+        # 3. Fallback to CPU
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available() and torch.backends.mps.is_built():
+            device = "mps"
+        else:
+            device = "cpu"
+
+        print(f"\nProcessing on device: {device}")
+
         self.model.to(device)
         self.model.eval()
         transform_args = {

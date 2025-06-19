@@ -1,12 +1,12 @@
 HellaSwag ( Zellers et al. , 2019 ) , WinoGrande ( Sakaguchi et al. , 2021 ) , ARC easy and challenge ( Clark et al. , 2018 ) and OpenBookQA ( Mihaylov et al. , 2018 ) . These datasets include Cloze and Winograd style tasks, as well as multiple choice question answering. We evaluate in the zero-shot setting as done in the language modeling community.
 
-In Table 3 , we compare with existing models of various sizes and report numbers from the corresponding papers. First, LLaMA-65B outperforms Chinchilla-70B on all reported benchmarks but BoolQ. Similarly, this model surpasses PaLM540B everywhere but on BoolQ and WinoGrande. LLaMA-13B model also outperforms GPT-3 on most benchmarks despite being $10\times$ smaller.
+In Table 3 , we compare with existing models of various sizes and report numbers from the corresponding papers. First, LLaMA-65B outperforms Chinchilla-70B on all reported benchmarks but BoolQ. Similarly, this model surpasses PaLM540B everywhere but on BoolQ and WinoGrande. LLaMA-13B model also outperforms GPT-3 on most benchmarks despite being 10 $\times$ smaller.
 
 ### 3.2 Closed-book Question Answering
 
 We compare LLaMA to existing large language models on two closed-book question answering benchmarks: Natural Questions ( Kwiatkowski et al. , 2019 ) and TriviaQA ( Joshi et al. , 2017 ) . For both benchmarks, we report exact match performance in a closed book setting, i.e., where the models do not have access to documents that contain evidence to answer the question. In Table 4 , we report performance on NaturalQuestions, and in Table 5 , we report on TriviaQA. On both benchmarks, LLaMA-65B achieve state-of-the-arts performance in the zero-shot and few-shot settings. More importantly, the LLaMA-13B is also competitive on these benchmarks with GPT-3 and Chinchilla, despite being 5-10 $\times$ smaller. This model runs on a single V100 GPU during inference.
 
-<table><tr><td></td><td></td><td>0-shot</td><td>1-shot</td><td>5-shot</td><td>64-shot</td></tr><tr><td rowspan="2">Gopher 280B Chinchilla</td><td>43.5</td><td>–</td><td>57.0</td><td>57.2</td></tr><tr><td>55.4</td><td>–</td><td>64.1</td><td>64.6</td></tr><tr><td rowspan="4">LLaMA</td><td>7B</td><td>50.0</td><td>53.4</td><td>56.3</td><td>57.6</td></tr><tr><td>13B</td><td>56.6</td><td>60.5</td><td>63.1</td><td>64.0</td></tr><tr><td>33B</td><td>65.1</td><td>67.9</td><td>69.9</td><td>70.4</td></tr><tr><td>65B</td><td>68.2</td><td>71.6</td><td>72.6</td><td>73.0</td></tr></table>
+<table><tr><td></td><td></td><td>0-shot</td><td>1-shot</td><td>5-shot</td><td>64-shot</td></tr><tr><td>Gopher</td><td>280B</td><td>43.5</td><td>-</td><td>57.0</td><td>57.2</td></tr><tr><td>Chinchilla</td><td>70B</td><td>55.4</td><td>-</td><td>64.1</td><td>64.6</td></tr><tr><td rowspan="4">LLaMA</td><td>7B</td><td>50.0</td><td>53.4</td><td>56.3</td><td>57.6</td></tr><tr><td>13B</td><td>56.6</td><td>60.5</td><td>63.1</td><td>64.0</td></tr><tr><td>33B</td><td>65.1</td><td>67.9</td><td>69.9</td><td>70.4</td></tr><tr><td>65B</td><td>68.2</td><td>71.6</td><td>72.6</td><td>73.0</td></tr></table>
 
 Table 5: TriviaQA. Zero-shot and few-shot exact match performance on the filtered dev set.
 
@@ -18,7 +18,7 @@ school Chinese students. We follow the evaluation setup from Brown et al. ( 2020
 
 <table><tr><td></td><td></td><td>RACE-middle</td><td>RACE-high</td></tr><tr><td>GPT-3</td><td>175B</td><td>58.4</td><td>45.5</td></tr><tr><td rowspan="3">PaLM</td><td>8B</td><td>57.9</td><td>42.3</td></tr><tr><td>62B</td><td>64.3</td><td>47.5</td></tr><tr><td>540B</td><td>68.1</td><td>49.1</td></tr><tr><td rowspan="4">LLaMA</td><td>7B</td><td>61.1</td><td>46.9</td></tr><tr><td>13B</td><td>61.6</td><td>47.2</td></tr><tr><td>33B</td><td>64.1</td><td>48.3</td></tr><tr><td>65B</td><td>67.9</td><td>51.6</td></tr></table>
 
-Table 6: Reading Comprehension. Zero-shot accu racy.
+Table 6: Reading Comprehension. Zero-shot accuracy.
 
 ### 3.4 Mathematical reasoning
 

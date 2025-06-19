@@ -108,6 +108,15 @@ ENV/
 env.bak/
 venv.bak/
 
+# AI models
+checkpoints/
+hf_model/
+
+# Test results
+results/
+results/markdown/
+results/recognition_json/
+
 # Spyder project settings
 .spyderproject
 .spyproject
