@@ -101,6 +101,7 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.dolphin
 env/
 venv/
 ENV/

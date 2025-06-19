@@ -380,9 +380,39 @@ class MarkdownConverter:
             return f"Error generating markdown content: {str(e)}"
 
     def _post_process(self, markdown_content: str) -> str:
-        """
-        Apply post-processing fixes to the generated markdown content
-        """
+        """Apply post-processing fixes to the generated markdown content."""
+        try:
+            # Replace author commands with plain text
+            markdown_content = re.sub(r"\\author\{(.*?)\}",
+                                      lambda m: self._handle_text(m.group(1)),
+                                      markdown_content,
+                                      flags=re.DOTALL)
+
+            # Replace abstract environments
+            markdown_content = re.sub(r"\\begin\{abstract\}(.*?)\\end\{abstract\}",
+                                      r"**Abstract** \1",
+                                      markdown_content,
+                                      flags=re.DOTALL)
+            markdown_content = re.sub(r"\\begin\{abstract\}", r"**Abstract**", markdown_content)
+
+            # Convert equation numbers to tags
+            markdown_content = re.sub(r"\\eqno\{\((.*?)\)\}", r"\\tag{\1}", markdown_content)
+
+            # Normalise display‐math delimiters
+            markdown_content = markdown_content.replace(r"\[ \\", r"$$ \\")
+
+            # Find the ending tag of the formula (ensure this is the only ending tag)
+            markdown_content = markdown_content.replace(r"\\ \"]", r"\\ $$")
+
+            # Misc clean-ups
+            markdown_content = re.sub(r"_ {", r"_{", markdown_content)
+            markdown_content = re.sub(r"\^ {", r"^{", markdown_content)
+            markdown_content = re.sub(r"\n{3,}", r"\n\n", markdown_content)
+
+            return markdown_content
+        except Exception as e:
+            print(f"_post_process error: {e}")
+            return markdown_content
         try:
             # Handle author information
             author_pattern = re.compile(r'\\author\{(.*?)\}', re.DOTALL)
@@ -428,10 +458,10 @@ class MarkdownConverter:
                                     markdown_content)
 
             # Find the starting tag of the formula
-            markdown_content = markdown_content.replace("\[ \\\\", "$$ \\\\")
+            markdown_content = markdown_content.replace(r"\\[ \\", r"$$ \\")
 
             # Find the ending tag of the formula (ensure this is the only ending tag)
-            markdown_content = markdown_content.replace("\\\\ \]", "\\\\ $$")
+            markdown_content = markdown_content.replace(r"\\ \"]", r"\\ $$")
 
             # Fix other common LaTeX issues
             replacements = [

@@ -28,9 +28,20 @@ class DOLPHIN:
         self.model.eval()
         
         # Set device and precision
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # Determine the best available device:
+        # 1. CUDA (NVIDIA GPUs)
+        # 2. Apple Silicon / macOS Metal Performance Shaders (MPS)
+        # 3. Fallback to CPU
+        if torch.cuda.is_available():
+            self.device = "cuda"
+            # On CUDA we can safely use half-precision (FP16) to speed up inference
+            self.model = self.model.half()
+        elif getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available() and torch.backends.mps.is_built():
+            self.device = "mps"
+        else:
+            self.device = "cpu"
+        # Move model parameters to the selected device
         self.model.to(self.device)
-        self.model = self.model.half()  # Always use half precision by default
         
         # set tokenizer
         self.tokenizer = self.processor.tokenizer
@@ -59,7 +70,11 @@ class DOLPHIN:
         
         # Prepare image
         batch_inputs = self.processor(images, return_tensors="pt", padding=True)
-        batch_pixel_values = batch_inputs.pixel_values.half().to(self.device)
+        # Convert the image tensor to the correct precision for the selected device
+        if self.device == "cuda":
+            batch_pixel_values = batch_inputs.pixel_values.half().to(self.device)
+        else:
+            batch_pixel_values = batch_inputs.pixel_values.to(self.device)
         
         # Prepare prompt
         prompts = [f"<s>{p} <Answer/>" for p in prompts]

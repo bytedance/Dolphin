@@ -1,0 +1,167 @@
+[
+  {
+    "label": "para",
+    "bbox": [
+      155,
+      160,
+      704,
+      401
+    ],
+    "text": "HellaSwag ( Zellers et al. , 2019 ) , WinoGrande ( Sak-\naguchi et al. , 2021 ) , ARC easy and challenge ( Clark\net al. , 2018 ) and OpenBookQA ( Mihaylov et al. ,\n2018 ) . These datasets include Cloze and Winograd\nstyle tasks, as well as multiple choice question an-\nswering. We evaluate in the zero-shot setting as\ndone in the language modeling community.",
+    "reading_order": 0
+  },
+  {
+    "label": "para",
+    "bbox": [
+      155,
+      401,
+      704,
+      669
+    ],
+    "text": "In Table 3 , we compare with existing models\nof various sizes and report numbers from the cor-\nresponding papers. First, LLaMA-65B outper-\nforms Chinchilla-70B on all reported benchmarks\nbut BoolQ. Similarly, this model surpasses PaLM-\n540B everywhere but on BoolQ and WinoGrande.\nLLaMA-13B model also outperforms GPT-3 on\nmost benchmarks despite being $10\\times$ smaller.",
+    "reading_order": 1
+  },
+  {
+    "label": "sub_sec",
+    "bbox": [
+      155,
+      702,
+      605,
+      729
+    ],
+    "text": "3.2 Closed-book Question Answering",
+    "reading_order": 2
+  },
+  {
+    "label": "para",
+    "bbox": [
+      153,
+      742,
+      703,
+      1283
+    ],
+    "text": "We compare LLaMA to existing large language\nmodels on two closed-book question answering\nbenchmarks: Natural Questions ( Kwiatkowski\net al. , 2019 ) and TriviaQA ( Joshi et al. , 2017 ) . For\nboth benchmarks, we report exact match perfor-\nmance in a closed book setting, i.e., where the mod-\nels do not have access to documents that contain\nevidence to answer the question. In Table 4 , we\nreport performance on NaturalQuestions, and in Ta-\nble 5 , we report on TriviaQA. On both benchmarks,\nLLaMA-65B achieve state-of-the-arts performance\nin the zero-shot and few-shot settings. More im-\nportantly, the LLaMA-13B is also competitive on\nthese benchmarks with GPT-3 and Chinchilla, de-\nspite being 5-10 $\\times$ smaller. This model runs on a\nsingle V100 GPU during inference.",
+    "reading_order": 3
+  },
+  {
+    "label": "tab",
+    "bbox": [
+      157,
+      1303,
+      701,
+      1604
+    ],
+    "text": "<table><tr><td></td><td></td><td>0-shot</td><td>1-shot</td><td>5-shot</td><td>64-shot</td></tr><tr><td rowspan=\"2\">Gopher 280B Chinchilla</td><td>43.5</td><td>–</td><td>57.0</td><td>57.2</td></tr><tr><td>55.4</td><td>–</td><td>64.1</td><td>64.6</td></tr><tr><td rowspan=\"4\">LLaMA</td><td>7B</td><td>50.0</td><td>53.4</td><td>56.3</td><td>57.6</td></tr><tr><td>13B</td><td>56.6</td><td>60.5</td><td>63.1</td><td>64.0</td></tr><tr><td>33B</td><td>65.1</td><td>67.9</td><td>69.9</td><td>70.4</td></tr><tr><td>65B</td><td>68.2</td><td>71.6</td><td>72.6</td><td>73.0</td></tr></table>",
+    "reading_order": 4
+  },
+  {
+    "label": "cap",
+    "bbox": [
+      160,
+      1623,
+      701,
+      1676
+    ],
+    "text": "Table 5: TriviaQA. Zero-shot and few-shot exact\nmatch performance on the filtered dev set.",
+    "reading_order": 5
+  },
+  {
+    "label": "sub_sec",
+    "bbox": [
+      155,
+      1744,
+      504,
+      1770
+    ],
+    "text": "3.3 Reading Comprehension",
+    "reading_order": 6
+  },
+  {
+    "label": "para",
+    "bbox": [
+      153,
+      1785,
+      703,
+      1925
+    ],
+    "text": "We evaluate our models on the RACE reading com-\nprehension benchmark ( Lai et al. , 2017 ) . This\ndataset was collected from English reading com-\nprehension exams designed for middle and high",
+    "reading_order": 7
+  },
+  {
+    "label": "para",
+    "bbox": [
+      742,
+      661,
+      1287,
+      828
+    ],
+    "text": "school Chinese students. We follow the evaluation\nsetup from Brown et al. ( 2020 ) and report results\nin Table 6 . On these benchmarks, LLaMA-65B is\ncompetitive with PaLM-540B, and, LLaMA-13B\noutperforms GPT-3 by a few percents.",
+    "reading_order": 8
+  },
+  {
+    "label": "tab",
+    "bbox": [
+      742,
+      160,
+      1283,
+      524
+    ],
+    "text": "<table><tr><td></td><td></td><td>RACE-middle</td><td>RACE-high</td></tr><tr><td>GPT-3</td><td>175B</td><td>58.4</td><td>45.5</td></tr><tr><td rowspan=\"3\">PaLM</td><td>8B</td><td>57.9</td><td>42.3</td></tr><tr><td>62B</td><td>64.3</td><td>47.5</td></tr><tr><td>540B</td><td>68.1</td><td>49.1</td></tr><tr><td rowspan=\"4\">LLaMA</td><td>7B</td><td>61.1</td><td>46.9</td></tr><tr><td>13B</td><td>61.6</td><td>47.2</td></tr><tr><td>33B</td><td>64.1</td><td>48.3</td></tr><tr><td>65B</td><td>67.9</td><td>51.6</td></tr></table>",
+    "reading_order": 9
+  },
+  {
+    "label": "cap",
+    "bbox": [
+      741,
+      541,
+      1283,
+      604
+    ],
+    "text": "Table 6: Reading Comprehension. Zero-shot accu\nracy.",
+    "reading_order": 10
+  },
+  {
+    "label": "sub_sec",
+    "bbox": [
+      742,
+      861,
+      1085,
+      887
+    ],
+    "text": "3.4 Mathematical reasoning",
+    "reading_order": 11
+  },
+  {
+    "label": "para",
+    "bbox": [
+      741,
+      902,
+      1291,
+      1544
+    ],
+    "text": "We evaluate our models on two mathematical rea-\nsoning benchmarks: MATH ( Hendrycks et al. ,\n2021 ) and GSM8k ( Cobbe et al. , 2021 ) . MATH\nis a dataset of 12K middle school and high school\nmathematics problems written in LaTeX. GSM8k\nis a set of middle school mathematical problems.\nIn Table 7 , we compare with PaLM and Min-\nerva ( Lewkowycz et al. , 2022 ) . Minerva is a series\nof PaLM models finetuned on 38.5B tokens ex-\ntracted from ArXiv and Math Web Pages, while\nneither PaLM or LLaMA are finetuned on mathe-\nmatical data. The numbers for PaLM and Minerva\nare taken from Lewkowycz et al. ( 2022 ) , and we\ncompare with and without maj1@k . maj1@k de-\nnotes evaluations where we generate $k$ samples for\neach problem and perform a majority voting ( Wang\net al. , 2022 ) . On GSM8k, we observe that LLaMA-\n65B outperforms Minerva-62B, although it has not\nbeen fine-tuned on mathematical data.",
+    "reading_order": 12
+  },
+  {
+    "label": "sub_sec",
+    "bbox": [
+      742,
+      1564,
+      1002,
+      1604
+    ],
+    "text": "3.5 Code generation",
+    "reading_order": 13
+  },
+  {
+    "label": "para",
+    "bbox": [
+      742,
+      1620,
+      1291,
+      1925
+    ],
+    "text": "We evaluate the ability of our models to write\ncode from a natural language description on two\nbenchmarks: HumanEval ( Chen et al. , 2021 ) and\nMBPP ( Austin et al. , 2021 ) . For both tasks, the\nmodel receives a description of the program in a\nfew sentences, as well as a few input-output ex-\namples. In HumanEval, it also receives a function\nsignature, and the prompt is formatted as natural\ncode with the textual description and tests in a",
+    "reading_order": 14
+  }
+]
