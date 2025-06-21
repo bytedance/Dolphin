@@ -11,8 +11,19 @@ import cv2
 from omegaconf import OmegaConf
 from PIL import Image
 
+import gc
+import torch
+
 from chat import DOLPHIN
 from utils.utils import *
+
+
+def flush_mps_cache():
+    """Release cached MPS memory on Apple Silicon GPUs and run Python GC."""
+    gc.collect()
+    if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+        torch.mps.empty_cache()
+
 
 
 def process_document(document_path, model, save_dir, max_batch_size):
@@ -47,6 +58,8 @@ def process_document(document_path, model, save_dir, max_batch_size):
                 "elements": recognition_results
             }
             all_results.append(page_results)
+            # Release GPU memory after each processed PDF page
+            flush_mps_cache()
         
         # Save combined results for multi-page PDF
         combined_json_path = save_combined_pdf_results(all_results, document_path, save_dir)
@@ -238,6 +251,9 @@ def main():
             )
 
             print(f"Processing completed. Results saved to {save_dir}")
+
+            # Flush cached GPU memory after each document to mitigate MPS memory growth
+            flush_mps_cache()
 
         except Exception as e:
             print(f"Error processing {file_path}: {str(e)}")
