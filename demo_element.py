@@ -10,8 +10,19 @@ import os
 from omegaconf import OmegaConf
 from PIL import Image
 
+import gc
+import torch
+
 from chat import DOLPHIN
 from utils.utils import *
+
+
+def flush_mps_cache():
+    """Release cached MPS memory on Apple Silicon GPUs and run Python GC."""
+    gc.collect()
+    if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+        torch.mps.empty_cache()
+
 
 
 def process_element(image_path, model, element_type, save_dir=None):
@@ -119,6 +130,9 @@ def main():
                 print("\nRecognition result:")
                 print(result)
                 print("-" * 40)
+
+            # Flush cached GPU memory after each processed image
+            flush_mps_cache()
 
         except Exception as e:
             print(f"Error processing {image_path}: {str(e)}")

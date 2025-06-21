@@ -27,21 +27,10 @@ class DOLPHIN:
         self.model = VisionEncoderDecoderModel.from_pretrained(model_id_or_path)
         self.model.eval()
         
-        # Set device and precision
-        # Determine the best available device:
-        # 1. CUDA (NVIDIA GPUs)
-        # 2. Apple Silicon / macOS Metal Performance Shaders (MPS)
-        # 3. Fallback to CPU
-        if torch.cuda.is_available():
-            self.device = "cuda"
-            # On CUDA we can safely use half-precision (FP16) to speed up inference
-            self.model = self.model.half()
-        elif getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available() and torch.backends.mps.is_built():
-            self.device = "mps"
-        else:
-            self.device = "cpu"
-        # Move model parameters to the selected device
+        # Set device and precision (CUDA or CPU only)
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model.to(self.device)
+        self.model = self.model.half()  # use FP16 by default
         
         # set tokenizer
         self.tokenizer = self.processor.tokenizer
