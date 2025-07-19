@@ -1,0 +1,70 @@
+# FastAPI and web framework dependencies
+fastapi==0.111.0
+uvicorn[standard]==0.24.0
+python-multipart==0.0.7
+pydantic==2.7.0
+pydantic[email]==2.7.0
+
+# Async and background tasks
+celery==5.3.4
+redis==5.0.1
+
+# HTTP and API clients
+httpx==0.25.2
+requests==2.31.0
+
+# Data processing and ML
+numpy==1.24.4
+torch==2.1.0
+torchvision==0.16.0
+transformers==4.47.0
+sentence-transformers==2.7.0
+accelerate==1.6.0
+
+# Document processing
+pymupdf==1.26
+pillow==9.3.0
+opencv-python==4.11.0.86
+opencv-python-headless==4.5.5.64
+
+# Configuration and utilities
+omegaconf==2.3.0
+python-dotenv==1.0.0
+typing-extensions==4.8.0
+
+# Audio/Video processing (for multimodal capabilities)
+timm==0.5.4
+
+# Monitoring and logging
+structlog==23.2.0
+prometheus-client==0.19.0
+
+# Development and testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.2
+pytest-mock==3.12.0
+
+# Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Database (optional for persistence)
+sqlalchemy==2.0.23
+alembic==1.13.0
+
+# Caching
+diskcache==5.6.3
+
+# File handling
+aiofiles==23.2.1
+
+# OpenAI compatibility
+openai==1.35.0
+
+# Additional utilities
+uuid==1.30
+python-dateutil==2.8.2
+pytz==2023.3 
+# Pydantic settings for BaseSettings
+pydantic-settings==2.5.2 

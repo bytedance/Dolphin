@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  scanner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dolphin/scanner:latest
+    container_name: dolphin-scanner
+    ports:
+      - "8000:8000"
+    environment:
+      - DOLPHIN_ENABLE_GPU=true
+      - DOLPHIN_MAX_BATCH_SIZE=4
+      - DOLPHIN_LOG_LEVEL=INFO
+      - DOLPHIN_REDIS_HOST=redis
+      - DOLPHIN_REDIS_PORT=6379
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - ./temp_uploads:/app/temp_uploads
+      - ./results:/app/results
+      - ../config:/app/config:ro
+    depends_on:
+      - redis
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  redis:
+    image: redis:7-alpine
+    container_name: dolphin-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  nginx:
+    image: nginx:alpine
+    container_name: dolphin-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - scanner
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  default:
+    name: dolphin-network 

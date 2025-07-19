@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dolphin-config
+  labels:
+    app: dolphin-scanner
+data:
+  # Scanner-specific configuration
+  scanner.yaml: |
+    scanner:
+      default_window_size: 2
+      default_overlap: 1
+      default_semantic_threshold: 0.8
+      max_batch_size: 4
+      enable_gpu: true
+      enable_caching: true
+      max_file_size: 52428800  # 50MB
+      temp_upload_dir: "/app/temp_uploads"
+      results_dir: "/app/results"
+      allowed_file_types:
+        - ".pdf"
+        - ".jpg"
+        - ".jpeg"
+        - ".png"
+        - ".tiff"
+        - ".bmp"
+      
+    redis:
+      host: "redis-service"
+      port: 6379
+      db: 0
+      timeout: 30
+      
+    logging:
+      level: "INFO"
+      format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+      
+    model:
+      config_path: "/app/config/Dolphin.yaml"
+      checkpoint_path: "/app/checkpoints"
+      tokenizer_path: "/app/models/tokenizer.json"
+      
+    performance:
+      workers: 2
+      max_requests_per_worker: 1000
+      request_timeout: 300
+      keep_alive: 2
+      
+    security:
+      cors_origins:
+        - "*"
+      cors_methods:
+        - "GET"
+        - "POST"
+        - "PUT"
+        - "DELETE"
+      cors_headers:
+        - "*" 

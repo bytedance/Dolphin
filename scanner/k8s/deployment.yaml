@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dolphin-scanner
+  labels:
+    app: dolphin-scanner
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dolphin-scanner
+  template:
+    metadata:
+      labels:
+        app: dolphin-scanner
+        version: v1
+    spec:
+      containers:
+      - name: scanner
+        image: dolphin/scanner:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "1000m"
+            nvidia.com/gpu: 1
+          limits:
+            memory: "8Gi"
+            cpu: "2000m"
+            nvidia.com/gpu: 1
+        env:
+        - name: DOLPHIN_ENABLE_GPU
+          value: "true"
+        - name: DOLPHIN_MAX_BATCH_SIZE
+          value: "4"
+        - name: DOLPHIN_LOG_LEVEL
+          value: "INFO"
+        - name: DOLPHIN_REDIS_HOST
+          value: "redis-service"
+        - name: DOLPHIN_REDIS_PORT
+          value: "6379"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"
+        volumeMounts:
+        - name: temp-storage
+          mountPath: /app/temp_uploads
+        - name: results-storage
+          mountPath: /app/results
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: temp-storage
+        emptyDir:
+          sizeLimit: 10Gi
+      - name: results-storage
+        persistentVolumeClaim:
+          claimName: scanner-results-pvc
+      - name: config-volume
+        configMap:
+          name: dolphin-config
+      nodeSelector:
+        accelerator: nvidia-tesla-gpu
+      tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - dolphin-scanner
+              topologyKey: kubernetes.io/hostname 

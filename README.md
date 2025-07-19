@@ -198,3 +198,282 @@ If you find this code useful for your research, please use the following BibTeX 
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=bytedance/Dolphin&type=Date)](https://www.star-history.com/#bytedance/Dolphin&Date)
+
+---
+
+## 🚀 FastAPI Service with Sliding Window PDF Processing
+
+### Overview
+
+This section outlines the plan to transform the current Dolphin implementation into a FastAPI service that processes PDFs using a sliding window approach to ensure proper semantic continuity across page boundaries.
+
+### Current Implementation Analysis
+
+The existing Dolphin system:
+- Processes PDFs by converting each page to images (`convert_pdf_to_images()`)
+- Uses a two-stage approach:
+  - **Stage 1**: Page-level layout analysis with `"Parse the reading order of this document."`
+  - **Stage 2**: Element-level content parsing (text, tables, formulas)
+- Processes pages independently, potentially losing cross-page semantic relationships
+- Saves results as JSON and Markdown formats
+
+### New Architecture: Sliding Window Processing
+
+#### Core Concept
+Instead of processing pages independently (1, 2, 3, 4...), we'll use overlapping windows:
+- Window 1: Pages 1-2
+- Window 2: Pages 2-3  
+- Window 3: Pages 3-4
+- And so on...
+
+This approach captures semantic relationships that span across page boundaries.
+
+### Implementation Plan
+
+#### Phase 1: FastAPI Service Foundation
+
+**1.1 Service Structure**
+```
+scanner/
+├── main.py                    # FastAPI application entry point
+├── models/
+│   ├── dolphin_model.py      # Wrapper for Dolphin model
+│   ├── window_processor.py   # Sliding window logic
+│   └── semantic_analyzer.py  # Cross-page semantic analysis
+├── services/
+│   ├── pdf_service.py        # PDF processing service
+│   ├── window_service.py     # Window management service
+│   └── overlap_service.py    # Overlap detection and merging
+├── schemas/
+│   ├── request_models.py     # Pydantic request models
+│   └── response_models.py    # Pydantic response models
+├── utils/
+│   ├── pdf_utils.py          # PDF handling utilities
+│   └── semantic_utils.py     # Semantic analysis utilities
+└── config/
+    └── settings.py           # Configuration management
+```
+
+**1.2 API Endpoints**
+- `POST /process-pdf` - Main endpoint for PDF processing
+- `GET /status/{job_id}` - Check processing status
+- `GET /results/{job_id}` - Retrieve processing results
+- `POST /process-pages` - Process specific page ranges
+- `GET /health` - Health check endpoint
+
+#### Phase 2: Sliding Window Implementation
+
+**2.1 Window Management**
+```python
+class SlidingWindowProcessor:
+    def __init__(self, window_size=2, overlap=1):
+        self.window_size = window_size
+        self.overlap = overlap
+    
+    def create_windows(self, total_pages):
+        """Generate overlapping page windows"""
+        windows = []
+        for i in range(0, total_pages - self.overlap, self.window_size - self.overlap):
+            end_page = min(i + self.window_size, total_pages)
+            windows.append((i, end_page))
+        return windows
+    
+    def process_window(self, pages, window_id):
+        """Process a single window of pages"""
+        # Combine pages into single context
+        # Apply Dolphin's two-stage processing
+        # Return structured results with metadata
+```
+
+**2.2 Enhanced PDF Processing**
+- Convert PDF pages to images with consistent sizing
+- Maintain page metadata (page numbers, original dimensions)
+- Handle different PDF layouts and orientations
+- Implement error handling for corrupted PDFs
+
+#### Phase 3: Semantic Analysis and Overlap Detection
+
+**3.1 Cross-Page Semantic Analysis**
+```python
+class SemanticAnalyzer:
+    def __init__(self, dolphin_model):
+        self.model = dolphin_model
+        self.similarity_threshold = 0.8
+    
+    def detect_paragraph_overlap(self, window1_results, window2_results):
+        """Detect overlapping paragraphs between windows"""
+        # Extract text elements from both windows
+        # Compare semantic similarity using embeddings
+        # Identify duplicate/overlapping content
+        # Return overlap mapping
+    
+    def merge_overlapping_content(self, overlaps):
+        """Merge overlapping paragraphs intelligently"""
+        # Remove duplicate content
+        # Preserve context and formatting
+        # Maintain reading order
+    
+    def compile_discrete_paragraphs(self, window_results):
+        """Compile unique paragraphs across all windows"""
+        # Identify truly discrete content
+        # Ensure no information loss
+        # Maintain document structure
+```
+
+**3.2 Advanced Features**
+- **Semantic Embedding**: Use sentence transformers for paragraph similarity
+- **Context Preservation**: Maintain narrative flow across pages
+- **Table Handling**: Special handling for tables spanning multiple pages
+- **Formula Continuity**: Detect mathematical expressions across pages
+
+#### Phase 4: Response Processing and Output
+
+**4.1 Structured Output**
+```python
+class ProcessingResult:
+    document_id: str
+    total_pages: int
+    processing_windows: List[WindowResult]
+    merged_content: MergedContent
+    semantic_relationships: List[SemanticRelation]
+    discrete_paragraphs: List[Paragraph]
+    cross_page_elements: List[CrossPageElement]
+```
+
+**4.2 Export Formats**
+- **JSON**: Structured data with metadata
+- **Markdown**: Human-readable format with preserved formatting
+- **HTML**: Rich format with semantic annotations
+- **XML**: Standards-compliant document structure
+
+#### Phase 5: Performance Optimization
+
+**5.1 Asynchronous Processing**
+- Background task processing for large PDFs
+- Progress tracking and status updates
+- Queue management for multiple requests
+- Resource pooling and model sharing
+
+**5.2 Caching Strategy**
+- Page-level caching for repeated processing
+- Window result caching
+- Model inference caching
+- Redis-based distributed caching
+
+**5.3 Scalability**
+- Horizontal scaling support
+- Load balancing for multiple model instances
+- GPU resource management
+- Container orchestration ready
+
+### Technical Implementation Details
+
+#### Model Integration
+```python
+class DolphinFastAPIWrapper:
+    def __init__(self, config_path: str):
+        self.dolphin = DOLPHIN(config)
+        self.window_processor = SlidingWindowProcessor()
+        self.semantic_analyzer = SemanticAnalyzer(self.dolphin)
+    
+    async def process_pdf_windows(self, pdf_path: str):
+        # Convert PDF to images
+        # Create sliding windows
+        # Process each window asynchronously
+        # Merge and analyze overlaps
+        # Return comprehensive results
+```
+
+#### Semantic Overlap Detection
+1. **Text Similarity**: Compare paragraph embeddings using sentence transformers
+2. **Structural Analysis**: Analyze layout patterns across pages
+3. **Content Deduplication**: Remove exact duplicates while preserving context
+4. **Cross-Reference Resolution**: Handle references that span pages
+
+#### Error Handling and Validation
+- PDF corruption detection and recovery
+- Page extraction error handling
+- Model inference timeout management
+- Result validation and quality checks
+
+### Deployment Strategy
+
+#### Development Environment
+```bash
+# Install dependencies
+pip install fastapi uvicorn python-multipart sentence-transformers redis
+
+# Run development server
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+#### Production Deployment
+- Docker containerization
+- Kubernetes deployment manifests
+- Health monitoring and logging
+- Auto-scaling configuration
+- GPU resource allocation
+
+### API Usage Examples
+
+#### Basic PDF Processing
+```python
+import requests
+
+# Upload and process PDF
+with open("document.pdf", "rb") as f:
+    response = requests.post(
+        "http://localhost:8000/process-pdf",
+        files={"file": f},
+        data={"window_size": 2, "overlap": 1}
+    )
+
+job_id = response.json()["job_id"]
+
+# Check status
+status = requests.get(f"http://localhost:8000/status/{job_id}")
+
+# Get results
+results = requests.get(f"http://localhost:8000/results/{job_id}")
+```
+
+#### Advanced Processing Options
+```python
+# Custom processing parameters
+payload = {
+    "window_size": 3,           # 3 pages per window
+    "overlap": 2,               # 2 pages overlap
+    "semantic_threshold": 0.85,  # Similarity threshold
+    "merge_tables": True,       # Merge cross-page tables
+    "preserve_formulas": True,  # Handle formula continuity
+    "output_format": "json"     # Output format preference
+}
+```
+
+### Benefits of This Approach
+
+#### Improved Accuracy
+- **Cross-page continuity**: Maintains semantic relationships
+- **Context preservation**: Better understanding of document flow
+- **Reduced information loss**: No content missed at page boundaries
+
+#### Enhanced Functionality
+- **Multi-page elements**: Proper handling of tables/figures across pages
+- **Reference resolution**: Links and citations across pages
+- **Narrative flow**: Maintains story/argument continuity
+
+#### Enterprise Readiness
+- **Scalable architecture**: Handles large document processing
+- **API-first design**: Easy integration with existing systems
+- **Comprehensive output**: Multiple format support
+- **Monitoring and logging**: Production-ready observability
+
+### Future Enhancements
+
+1. **Multi-modal Analysis**: Combine text, images, and layout analysis
+2. **Language Support**: Multi-language document processing
+3. **Template Recognition**: Identify and handle document templates
+4. **Collaborative Processing**: Multiple document cross-analysis
+5. **Real-time Processing**: Stream processing for large documents
+
+This sliding window approach with semantic overlap detection ensures that the FastAPI service maintains the quality and accuracy of the original Dolphin model while providing enterprise-grade scalability and cross-page intelligence.
