@@ -6,6 +6,7 @@ SPDX-License-Identifier: MIT
 import argparse
 import glob
 import os
+import time
 
 import cv2
 import torch
@@ -27,14 +28,18 @@ class DOLPHIN:
         self.model = VisionEncoderDecoderModel.from_pretrained(model_id_or_path)
         self.model.eval()
         
-        # Set device and precision
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model.to(self.device)
-        # Use float16 on CUDA, float32 on CPU
-        if self.device == "cuda":
-            self.model = self.model.half()
+        # Set device and precision (support CUDA/MPS/CPU)
+        if torch.cuda.is_available():
+            self.device = "cuda"
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            self.device = "mps"
         else:
-            self.model = self.model.float()
+            self.device = "cpu"
+
+        # Use float16 on CUDA, float32 on MPS/CPU for stability
+        target_dtype = torch.float16 if self.device == "cuda" else torch.float32
+        self.model.to(self.device)
+        self.model.to(dtype=target_dtype)
         
         # set tokenizer
         self.tokenizer = self.processor.tokenizer
@@ -61,9 +66,13 @@ class DOLPHIN:
             images = image
             prompts = prompt if isinstance(prompt, list) else [prompt] * len(images)
         
-        # Prepare image
-        batch_inputs = self.processor(images, return_tensors="pt", padding=True)
-        batch_pixel_values = batch_inputs.pixel_values.half().to(self.device)
+        # Prepare image (match model dtype/device; silence HF legacy warning when supported)
+        try:
+            batch_inputs = self.processor(images, return_tensors="pt", padding=True, legacy=False)
+        except TypeError:
+            batch_inputs = self.processor(images, return_tensors="pt", padding=True)
+        model_dtype = next(self.model.parameters()).dtype
+        batch_pixel_values = batch_inputs.pixel_values.to(self.device, dtype=model_dtype)
         
         # Prepare prompt
         prompts = [f"<s>{p} <Answer/>" for p in prompts]
@@ -125,6 +134,7 @@ def process_document(document_path, model, save_dir, max_batch_size=None):
         # Process each page
         for page_idx, pil_image in enumerate(images):
             print(f"Processing page {page_idx + 1}/{len(images)}")
+            start_time = time.perf_counter()
             
             # Generate output name for this page
             base_name = os.path.splitext(os.path.basename(document_path))[0]
@@ -141,6 +151,8 @@ def process_document(document_path, model, save_dir, max_batch_size=None):
                 "elements": recognition_results
             }
             all_results.append(page_results)
+            elapsed_s = time.perf_counter() - start_time
+            print(f"Finished page {page_idx + 1}/{len(images)} in {elapsed_s:.2f}s")
         
         # Save combined results for multi-page PDF
         combined_json_path = save_combined_pdf_results(all_results, document_path, save_dir)

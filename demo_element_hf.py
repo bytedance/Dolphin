@@ -26,14 +26,18 @@ class DOLPHIN:
         self.model = VisionEncoderDecoderModel.from_pretrained(model_id_or_path)
         self.model.eval()
         
-        # Set device and precision
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model.to(self.device)
-        # Use float16 on CUDA, float32 on CPU
-        if self.device == "cuda":
-            self.model = self.model.half()
+        # Set device and precision (support CUDA/MPS/CPU)
+        if torch.cuda.is_available():
+            self.device = "cuda"
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            self.device = "mps"
         else:
-            self.model = self.model.float()
+            self.device = "cpu"
+
+        # Use float16 on CUDA, float32 on MPS/CPU
+        target_dtype = torch.float16 if self.device == "cuda" else torch.float32
+        self.model.to(self.device)
+        self.model.to(dtype=target_dtype)
         
         # set tokenizer
         self.tokenizer = self.processor.tokenizer
@@ -48,9 +52,13 @@ class DOLPHIN:
         Returns:
             Generated text from the model
         """
-        # Prepare image
-        pixel_values = self.processor(image, return_tensors="pt").pixel_values
-        pixel_values = pixel_values.half()
+        # Prepare image (match model dtype/device; silence HF legacy warning when supported)
+        try:
+            processed = self.processor(image, return_tensors="pt", legacy=False)
+        except TypeError:
+            processed = self.processor(image, return_tensors="pt")
+        model_dtype = next(self.model.parameters()).dtype
+        pixel_values = processed.pixel_values.to(self.device, dtype=model_dtype)
             
         # Prepare prompt
         prompt = f"<s>{prompt} <Answer/>"
