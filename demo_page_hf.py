@@ -302,11 +302,11 @@ def process_element_batch(elements, model, prompt, max_batch_size=None):
 def main():
     parser = argparse.ArgumentParser(description="Document parsing based on DOLPHIN")
     parser.add_argument("--model_path", default="./hf_model", help="Path to Hugging Face model")
-    parser.add_argument("--input_path", type=str, default="example.pdf", help="Path to input image/PDF or directory of files")
+    parser.add_argument("--input_path", type=str, default="./demo", help="Path to input image/PDF or directory of files")
     parser.add_argument(
         "--save_dir",
         type=str,
-        default="./results",
+        default=None,
         help="Directory to save parsing results (default: same as input directory)",
     )
     parser.add_argument(
