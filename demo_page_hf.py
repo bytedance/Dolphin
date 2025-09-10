@@ -63,7 +63,10 @@ class DOLPHIN:
         
         # Prepare image
         batch_inputs = self.processor(images, return_tensors="pt", padding=True)
-        batch_pixel_values = batch_inputs.pixel_values.half().to(self.device)
+        
+        #Use same types as model
+        model_dtype = next(self.model.parameters()).dtype
+        batch_pixel_values = batch_inputs.pixel_values.to(dtype=model_dtype, device=self.device)
         
         # Prepare prompt
         prompts = [f"<s>{p} <Answer/>" for p in prompts]
@@ -299,11 +302,11 @@ def process_element_batch(elements, model, prompt, max_batch_size=None):
 def main():
     parser = argparse.ArgumentParser(description="Document parsing based on DOLPHIN")
     parser.add_argument("--model_path", default="./hf_model", help="Path to Hugging Face model")
-    parser.add_argument("--input_path", type=str, default="./demo", help="Path to input image/PDF or directory of files")
+    parser.add_argument("--input_path", type=str, default="example.pdf", help="Path to input image/PDF or directory of files")
     parser.add_argument(
         "--save_dir",
         type=str,
-        default=None,
+        default="./results",
         help="Directory to save parsing results (default: same as input directory)",
     )
     parser.add_argument(
