@@ -67,7 +67,18 @@ Try our demo on [Demo-Dolphin](https://huggingface.co/spaces/ByteDance/Dolphin).
    cd Dolphin
    ```
 
-2. Install the dependencies:
+2. Install the dependencies using one of the following methods:
+
+   **Option A: Using uv (Recommended for faster installation)**
+   ```bash
+   # Install uv if you haven't already
+   pip install uv
+   
+   # Install dependencies and sync the environment
+   uv sync
+   ```
+
+   **Option B: Using pip (Traditional method)**
    ```bash
    pip install -r requirements.txt
    ```

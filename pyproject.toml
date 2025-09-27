@@ -1,16 +1,20 @@
-[tool.black]
-line-length = 120
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
+[project]
+name = "dolphin"
+version = "0.1.0"
+description = "Document Image Parsing via Heterogeneous Anchor Prompting - A novel multimodal document image parsing model"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "accelerate==1.6.0",
+    "loguru>=0.7.3",
+    "numpy>=1.26.0",
+    "omegaconf==2.3.0",
+    "opencv-python==4.11.0.86",
+    "opencv-python-headless==4.10.0.84",
+    "pillow>=10.0.0",
+    "pymupdf==1.26",
+    "timm>=0.9.0",
+    "torch>=2.4.0",
+    "torchvision>=0.19.0",
+    "transformers==4.47.0",
+]
