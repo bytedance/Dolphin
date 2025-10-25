@@ -30,6 +30,7 @@ class DOLPHIN:
         # Set device and precision
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model.to(self.device)
+        
         # Use float16 on CUDA, float32 on CPU
         if self.device == "cuda":
             self.model = self.model.half()
@@ -63,7 +64,7 @@ class DOLPHIN:
         
         # Prepare image
         batch_inputs = self.processor(images, return_tensors="pt", padding=True)
-        batch_pixel_values = batch_inputs.pixel_values.half().to(self.device)
+        batch_pixel_values = batch_inputs.pixel_values.to(self.device, dtype=self.model.dtype)
         
         # Prepare prompt
         prompts = [f"<s>{p} <Answer/>" for p in prompts]
