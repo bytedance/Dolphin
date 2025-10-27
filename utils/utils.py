@@ -7,6 +7,8 @@ import io
 import json
 import os
 import re
+import time
+import uuid
 from dataclasses import dataclass
 from typing import List, Tuple
 
@@ -297,7 +299,7 @@ def process_coordinates(coords, padded_image, dims: ImageDimensions, previous_bo
         return 0, 0, 100, 100, orig_x1, orig_y1, orig_x2, orig_y2, [0, 0, 100, 100]
 
 
-def prepare_image(image) -> Tuple[np.ndarray, ImageDimensions]:
+def prepare_image(image, pdf_name=None, page_number=None, processed_images_dir=None) -> Tuple[np.ndarray, ImageDimensions]:
     """Load and prepare image with padding while maintaining aspect ratio
 
     Args:
@@ -320,6 +322,38 @@ def prepare_image(image) -> Tuple[np.ndarray, ImageDimensions]:
 
         # Apply padding
         padded_image = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=(0, 0, 0))
+
+         # Save the processed padded image with organized filename
+        try:
+            if processed_images_dir is None:
+                processed_images_dir = "./processed_images"
+            # Create PDF-specific subdirectory if pdf_name is provided
+            if pdf_name:
+                pdf_dir = os.path.join(processed_images_dir, pdf_name)
+                os.makedirs(pdf_dir, exist_ok=True)
+                
+                # Generate organized filename
+                if page_number is not None:
+                    unique_filename = f"page-{page_number}.png"
+                else:
+                    unique_filename = f"{pdf_name}.png"
+                    
+                processed_image_path = os.path.join(pdf_dir, unique_filename)
+            else:
+                # Fallback to original naming scheme for non-PDF files
+                os.makedirs(processed_images_dir, exist_ok=True)
+                timestamp = int(time.time() * 1000)  # milliseconds since epoch
+                unique_id = str(uuid.uuid4())[:8]  # first 8 characters of UUID
+                unique_filename = f"processed_{timestamp}_{unique_id}.png"
+                processed_image_path = os.path.join(processed_images_dir, unique_filename)
+
+            cv2.imwrite(processed_image_path, padded_image)
+            print(f"✓ Saved processed padded image: {unique_filename}")
+            
+        except Exception as save_error:
+            # Don't let saving errors affect the main functionality
+            print(f"Warning: Could not save processed image: {str(save_error)}")
+
 
         padded_h, padded_w = padded_image.shape[:2]
 
