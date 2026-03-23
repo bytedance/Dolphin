@@ -9,8 +9,8 @@ import os
 
 import torch
 from PIL import Image
-from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 from qwen_vl_utils import process_vision_info
+from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 
 from utils.utils import *
 
@@ -193,7 +193,7 @@ def process_single_image(image, model, save_dir, image_name, max_batch_size=None
     json_path = None
     if save_individual:
         # Create a dummy image path for save_outputs function
-        json_path = save_outputs(recognition_results, image, image_name, save_dir)
+        json_path = save_outputs(recognition_results, image, image_name, save_dir, post_process=False)
 
     return json_path, recognition_results
 

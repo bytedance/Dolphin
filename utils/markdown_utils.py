@@ -3,9 +3,9 @@ Copyright (c) 2025 Bytedance Ltd. and/or its affiliates
 SPDX-License-Identifier: MIT
 """
 
-import re
 import base64
-from typing import List, Dict, Any, Optional
+import re
+from typing import Any, Dict, List, Optional
 
 
 def extract_table_from_html(html_string):
@@ -20,11 +20,71 @@ def extract_table_from_html(html_string):
         return f"<table><tr><td>Error extracting table: {str(e)}</td></tr></table>"
 
 
+def remove_numeric_quad_ending(s: str) -> str:
+    pattern = r"\\quad\([^)]*\)"
+    result = re.sub(pattern, "", s)
+    return result
+
+
+def aligned_to_array(latex: str) -> str:
+    pattern = re.compile(r"\\begin\{aligned\}(.*?)\\end\{aligned\}", flags=re.DOTALL)
+
+    def repl(match):
+        content = match.group(1).strip()
+        new_content = content.replace("&", "")
+        return f"\\begin{{array}}{{l}}\n{new_content}\n\\end{{array}}"
+
+    converted = pattern.sub(repl, latex)
+    return converted
+
+
+def gathered_to_aligned(latex: str) -> str:
+    latex = latex.replace(r"\begin{gathered}", r"\begin{aligned}")
+    latex = latex.replace(r"\end{gathered}", r"\end{aligned}")
+    return latex
+
+
+def replace_repeated_cdots(latex):
+    latex = re.sub(r"(\\cdots\s*){3,}", r"\\cdots$$", latex)
+    return latex
+
+
+def truncate_repeated_tail(s, threshold=20, keep=1):
+    if not s:
+        return s
+
+    max_pattern_len = min(100, len(s) // threshold)
+
+    for pattern_len in range(1, max_pattern_len + 1):
+        if len(s) < pattern_len:
+            break
+
+        pattern = s[-pattern_len:]
+
+        count = 0
+        pos = len(s)
+
+        while pos >= pattern_len:
+            if s[pos - pattern_len : pos] == pattern:
+                count += 1
+                pos -= pattern_len
+            else:
+                break
+
+        if count > threshold:
+            non_repeat_part = s[:pos]
+            kept_repeats = pattern * keep
+            return non_repeat_part + kept_repeats
+
+    return s
+
+
 class MarkdownConverter:
     """Convert structured recognition results to Markdown format"""
     
-    def __init__(self):
+    def __init__(self, post_process: Optional[bool] = False):
         # Define heading levels for different section types
+        self.post_process = post_process
         self.heading_levels = {
             'sec_0': '#',
             'sec_1': '##',
@@ -109,6 +169,8 @@ class MarkdownConverter:
             
             # Process formulas in text before handling other text processing
             text = self._process_formulas_in_text(text)
+            if self.post_process:
+                text = replace_repeated_cdots(text)
             text = self.try_remove_newline(text)
             return text
         except Exception as e:
@@ -211,10 +273,11 @@ class MarkdownConverter:
         Convert table content to markdown format
         """
         try:
-            markdown_content = []
-            markdown_table = extract_table_from_html(text)
-            markdown_content.append(markdown_table + "\n")
-            return '\n'.join(markdown_content) + '\n\n'
+            if self.post_process:
+                markdown_table = text
+            else:
+                markdown_table = extract_table_from_html(text)
+            return markdown_table + '\n\n'
         
         except Exception as e:
             print(f"_handle_table error: {str(e)}")
@@ -225,6 +288,13 @@ class MarkdownConverter:
         Handle formula-specific content
         """
         try:
+            if self.post_process:
+                text = remove_numeric_quad_ending(text)
+                text = gathered_to_aligned(text)
+                text = aligned_to_array(text)
+                text = replace_repeated_cdots(text)
+                return f"{text}\n\n"
+
             text = text.strip('$').rstrip("\ ").replace(r'\upmu', r'\mu')
             for key, value in self.replace_dict.items():
                 text = text.replace(key, value)
@@ -247,12 +317,15 @@ class MarkdownConverter:
                     label = result.get('label', '')
                     text = result.get('text', '').strip()
                     
+                    if self.post_process:
+                        text = truncate_repeated_tail(text, threshold=20, keep=1)
+                        
                     # Skip empty text
                     if not text:
                         continue
                         
                     # Handle different content types
-                    if label in {'sec_0', 'sec_1', 'sec_2', 'sec_3', 'sec_4', 'sec_5'}:
+                    if label in {'sec_0', 'sec_1', 'sec_2', 'sec_3', 'sec_4', 'sec_5', 'sec'}:
                         markdown_content.append(self._handle_heading(text, label))
                     elif label == 'fig':
                         markdown_content.append(self._handle_figure(text, section_count))
@@ -264,11 +337,12 @@ class MarkdownConverter:
                         markdown_content.append(self._handle_list_item(text))
                     elif label == 'code':
                         markdown_content.append(f"```bash\n{text}\n```\n\n")
+                    elif label == 'distorted_page':
+                        markdown_content.append(f"{text}\n\n")
                     else:
                         # Handle regular text (paragraphs, etc.)
                         processed_text = self._handle_text(text)
                         markdown_content.append(f"{processed_text}\n\n")
-                        # TODO: distoraged page
 
                 except Exception as e:
                     print(f"Error processing item {section_count}: {str(e)}")
