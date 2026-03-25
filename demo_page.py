@@ -123,8 +123,7 @@ class DOLPHIN:
             return results[0]
         return results
 
-
-def process_document(document_path, model, save_dir, max_batch_size=None):
+def process_document(document_path, model, save_dir, max_batch_size=None, ignore_header=False, ignore_footer=False):
     """Parse documents with two stages - Handles both images and PDFs"""
     file_ext = os.path.splitext(document_path)[1].lower()
     
@@ -146,7 +145,7 @@ def process_document(document_path, model, save_dir, max_batch_size=None):
             
             # Process this page (don't save individual page results)
             json_path, recognition_results = process_single_image(
-                pil_image, model, save_dir, page_name, max_batch_size, save_individual=False
+                pil_image, model, save_dir, page_name, max_batch_size, False, ignore_header, ignore_footer
             )
             
             # Add page information to results
@@ -165,10 +164,10 @@ def process_document(document_path, model, save_dir, max_batch_size=None):
         # Process regular image file
         pil_image = Image.open(document_path).convert("RGB")
         base_name = os.path.splitext(os.path.basename(document_path))[0]
-        return process_single_image(pil_image, model, save_dir, base_name, max_batch_size)
+        return process_single_image(pil_image, model, save_dir, base_name, max_batch_size, True, ignore_header, ignore_footer)
 
 
-def process_single_image(image, model, save_dir, image_name, max_batch_size=None, save_individual=True):
+def process_single_image(image, model, save_dir, image_name, max_batch_size=None, save_individual=True, ignore_header=False, ignore_footer=False):
     """Process a single image (either from file or converted from PDF page)
     
     Args:
@@ -187,7 +186,9 @@ def process_single_image(image, model, save_dir, image_name, max_batch_size=None
     # print(layout_output)
 
     # Stage 2: Element-level content parsing
-    recognition_results = process_elements(layout_output, image, model, max_batch_size, save_dir, image_name)
+    recognition_results = process_elements(
+        layout_output, image, model, max_batch_size, save_dir, image_name, ignore_header, ignore_footer
+    )
 
     # Save outputs only if requested (skip for PDF pages)
     json_path = None
@@ -198,7 +199,7 @@ def process_single_image(image, model, save_dir, image_name, max_batch_size=None
     return json_path, recognition_results
 
 
-def process_elements(layout_results, image, model, max_batch_size, save_dir=None, image_name=None):
+def process_elements(layout_results, image, model, max_batch_size, save_dir=None, image_name=None, ignore_header=False, ignore_footer=False):
     """Parse all document elements with parallel decoding"""
     layout_results_list = parse_layout_string(layout_results)
     if not layout_results_list or not (layout_results.startswith("[") and layout_results.endswith("]")):
@@ -207,6 +208,12 @@ def process_elements(layout_results, image, model, max_batch_size, save_dir=None
     elif len(layout_results_list) > 1 and check_bbox_overlap(layout_results_list, image):
         print("Falling back to distorted_page mode due to high bbox overlap")
         layout_results_list = [([0, 0, *image.size], 'distorted_page', [])]
+
+    if ignore_header or ignore_footer:
+        layout_results_list = [
+            (bbox, label, tags) for bbox, label, tags in layout_results_list
+            if not ((ignore_header and label.lower() == "header") or (ignore_footer and label.lower() in {"foot", "footer"}))
+        ]
         
     tab_elements = []      
     equ_elements = []     
@@ -336,6 +343,16 @@ def main():
         default=4,
         help="Maximum number of document elements to parse in a single batch (default: 4)",
     )
+    parser.add_argument(
+        "--ignore_header",
+        action="store_true",
+        help="Ignore elements labeled as header during OCR and output generation",
+    )
+    parser.add_argument(
+        "--ignore_footer",
+        action="store_true",
+        help="Ignore elements labeled as foot/footer during OCR and output generation",
+    )
     args = parser.parse_args()
 
     # Load Model
@@ -380,6 +397,8 @@ def main():
                 model=model,
                 save_dir=save_dir,
                 max_batch_size=args.max_batch_size,
+                ignore_header=args.ignore_header,
+                ignore_footer=args.ignore_footer,
             )
 
             print(f"Processing completed. Results saved to {save_dir}")

@@ -152,6 +152,11 @@ python demo_page.py --model_path ./hf_model --save_dir ./results \
 python demo_page.py --model_path ./hf_model --save_dir ./results \
     --input_path ./demo/page_imgs \
     --max_batch_size 8
+
+# 页面解析时忽略识别出的页眉和页脚区域
+python demo_page.py --model_path ./hf_model --save_dir ./results \
+    --input_path ./demo/page_imgs/page_6.pdf \
+    --ignore_header --ignore_footer
 ```
 
 ### 🧩 元素级解析

@@ -157,6 +157,11 @@ python demo_page.py --model_path ./hf_model --save_dir ./results \
 python demo_page.py --model_path ./hf_model --save_dir ./results \
     --input_path ./demo/page_imgs \
     --max_batch_size 8
+
+# Ignore detected header and footer blocks during page parsing
+python demo_page.py --model_path ./hf_model --save_dir ./results \
+    --input_path ./demo/page_imgs/page_6.pdf \
+    --ignore_header --ignore_footer
 ```
 
 ### 🧩 Element-level Parsing
