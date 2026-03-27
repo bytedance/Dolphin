@@ -152,3 +152,7 @@ Desktop.ini
 
 fusion_result.json
 kernel_meta/
+
+# UV package manager
+uv.lock
+.python-version

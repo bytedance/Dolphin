@@ -121,7 +121,7 @@ Try our demo on [Demo-Dolphin](https://huggingface.co/spaces/ByteDance/Dolphin).
 3. Download the pre-trained models of *Dolphin-v2*:
 
    Visit our Huggingface [model card](https://huggingface.co/ByteDance/Dolphin-v2), or download model by:
-   
+
    ```bash
    # Download the model from Hugging Face Hub
    git lfs install
@@ -131,27 +131,51 @@ Try our demo on [Demo-Dolphin](https://huggingface.co/spaces/ByteDance/Dolphin).
    huggingface-cli download ByteDance/Dolphin-v2 --local-dir ./hf_model
    ```
 
+### Alternative: Using UV
+
+For faster dependency resolution, you can use [UV](https://docs.astral.sh/uv/) as an alternative to pip:
+
+1. Install UV:
+   ```bash
+   # On macOS and Linux
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+
+   # On Windows
+   powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+   ```
+
+2. Install dependencies:
+   ```bash
+   uv sync
+   ```
+
+3. Download the model:
+   ```bash
+   uv run huggingface-cli download ByteDance/Dolphin-v2 --local-dir ./hf_model
+   ```
+
 ## ⚡ Inference
 
 Dolphin provides two inference frameworks with support for two parsing granularities:
 - **Page-level Parsing**: Parse the entire document page into a structured JSON and Markdown format
 - **Element-level Parsing**: Parse individual document elements (text, table, formula)
 
+**Note:** If you installed using UV, prefix all python commands with `uv run`, e.g., `uv run python demo_page.py ...`
 
 ### 📄 Page-level Parsing
 
 ```bash
 # Process a single document image
 python demo_page.py --model_path ./hf_model --save_dir ./results \
-    --input_path ./demo/page_imgs/page_1.png 
+    --input_path ./demo/page_imgs/page_1.png
 
 # Process a single document pdf
 python demo_page.py --model_path ./hf_model --save_dir ./results \
-    --input_path ./demo/page_imgs/page_6.pdf 
+    --input_path ./demo/page_imgs/page_6.pdf
 
 # Process all documents in a directory
 python demo_page.py --model_path ./hf_model --save_dir ./results \
-    --input_path ./demo/page_imgs 
+    --input_path ./demo/page_imgs
 
 # Process with custom batch size for parallel element decoding
 python demo_page.py --model_path ./hf_model --save_dir ./results \
@@ -173,14 +197,14 @@ python demo_element.py --model_path ./hf_model --save_dir ./results \
 # Process a single document image
 python demo_layout.py --model_path ./hf_model --save_dir ./results \
     --input_path ./demo/page_imgs/page_1.png \
-    
+
 # Process a single PDF document
 python demo_layout.py --model_path ./hf_model --save_dir ./results \
     --input_path ./demo/page_imgs/page_6.pdf \
 
 # Process all documents in a directory
 python demo_layout.py --model_path ./hf_model --save_dir ./results \
-    --input_path ./demo/page_imgs 
+    --input_path ./demo/page_imgs
 ````
 
 

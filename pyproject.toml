@@ -1,16 +1,36 @@
-[tool.black]
-line-length = 120
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
+[project]
+name = "dolphin"
+version = "2.0.0"
+description = "Document Image Parsing via Heterogeneous Anchor Prompting"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = { text = "MIT" }
+dependencies = [
+    "datasets>=3.6.0",
+    "torch>=2.6.0",
+    "torchvision>=0.21.0",
+    "transformers>=4.51.0",
+    "accelerate>=1.4.0",
+    "decord>=0.6.0",
+    "Levenshtein>=0.27.1",
+    "qwen_vl_utils",
+    "matplotlib",
+    "jieba",
+    "opencv-python",
+    "beautifulsoup4",
+    "albumentations>=1.4.0",
+    "pymupdf>=1.26",
+    "huggingface-hub",
+]
+
+[tool.uv]
+index-strategy = "unsafe-best-match"
+environments = ["sys_platform == 'linux'"]
+
+[[tool.uv.index]]
+name = "pytorch-rocm"
+url = "https://download.pytorch.org/whl/rocm6.3"
+
+[tool.uv.sources]
+torch = { index = "pytorch-rocm" }
+torchvision = { index = "pytorch-rocm" }
