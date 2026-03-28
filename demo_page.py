@@ -24,17 +24,25 @@ class DOLPHIN:
         """
         # Load model from local path or Hugging Face hub
         self.processor = AutoProcessor.from_pretrained(model_id_or_path)
-        self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(model_id_or_path)
-        self.model.eval()
         
-        # Set device and precision
+        # Set device and force GPU usage
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model.to(self.device)
-
+        
         if self.device == "cuda":
-            self.model = self.model.bfloat16()
+            print(f"🚀 Loading model on GPU: {torch.cuda.get_device_name(0)}")
+            # Load model directly on GPU with optimized settings
+            self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+                model_id_or_path,
+                torch_dtype=torch.bfloat16,
+                device_map="cuda:0"
+            )
         else:
+            print("⚠️ GPU not available, using CPU (will be slower)")
+            self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(model_id_or_path)
             self.model = self.model.float()
+            self.model.to(self.device)
+        
+        self.model.eval()
         
         # set tokenizer
         self.tokenizer = self.processor.tokenizer
