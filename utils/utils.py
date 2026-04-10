@@ -16,6 +16,7 @@ import cv2
 import numpy as np
 import pymupdf
 from PIL import Image
+from qwen_vl_utils import smart_resize
 
 from utils.markdown_utils import MarkdownConverter
 
@@ -92,13 +93,14 @@ def convert_pdf_to_images(pdf_path, target_size=896):
         return []
 
 
-def save_combined_pdf_results(all_page_results, pdf_path, save_dir):
+def save_combined_pdf_results(all_page_results, pdf_path, save_dir, post_process=False):
     """Save combined results for multi-page PDF with both JSON and Markdown
 
     Args:
         all_page_results: List of results for all pages
         pdf_path: Path to original PDF file
         save_dir: Directory to save results
+        post_process: Whether to apply post-processing to the markdown
 
     Returns:
         Path to saved combined JSON file
@@ -119,7 +121,7 @@ def save_combined_pdf_results(all_page_results, pdf_path, save_dir):
 
     # Generate and save combined markdown
     try:
-        markdown_converter = MarkdownConverter()
+        markdown_converter = MarkdownConverter(post_process)
 
         # Combine all page results into a single list for markdown conversion
         all_elements = []
@@ -155,6 +157,20 @@ def save_combined_pdf_results(all_page_results, pdf_path, save_dir):
     return json_path
 
 
+def extract_labels_from_string(text):
+    """
+    from [202,217,921,325][para][author] extract para and author
+    """
+    all_matches = re.findall(r'\[([^\]]+)\]', text)
+    
+    labels = []
+    for match in all_matches:
+        if not re.match(r'^\d+,\d+,\d+,\d+$', match):
+            labels.append(match)
+    
+    return labels
+
+
 def parse_layout_string(bbox_str):
     """
     Dolphin-V1.5 layout string parsing function
@@ -174,64 +190,32 @@ def parse_layout_string(bbox_str):
         segment = segment.strip()
         if not segment:
             continue
-            
-        coord_pattern = r'\[(\d*\.?\d+),(\d*\.?\d+),(\d*\.?\d+),(\d*\.?\d+)\]'
-        label_pattern = r'\]\[([^\]]+)\]'
         
+        coord_pattern = r'\[(\d*\.?\d+),(\d*\.?\d+),(\d*\.?\d+),(\d*\.?\d+)\]'
         coord_match = re.search(coord_pattern, segment)
-        label_matches = re.findall(label_pattern, segment)
+        label_matches = extract_labels_from_string(segment)
         
         if coord_match and label_matches:
             coords = [float(coord_match.group(i)) for i in range(1, 5)]
             label = label_matches[0].strip()
-            parsed_results.append((coords, label))
+            parsed_results.append((coords, label, label_matches[1:])) # label_matches[1:] 是 tags
     
     return parsed_results
 
 
-@dataclass
-class ImageDimensions:
-    """Class to store image dimensions"""
+def process_coordinates(coords, pil_image):
+    original_w, original_h = pil_image.size[:2]
+    # use the same resize logic as the model
+    resized_pil = resize_img(pil_image)
+    resized_image = np.array(resized_pil)
+    resized_h, resized_w = resized_image.shape[:2]
+    resized_h, resized_w = smart_resize(resized_h, resized_w, factor=28, min_pixels=784, max_pixels=2560000)
 
-    original_w: int
-    original_h: int
-    padded_w: int
-    padded_h: int
-
-
-def map_to_original_coordinates(x1, y1, x2, y2, dims: ImageDimensions) -> Tuple[int, int, int, int]:
-    """Map coordinates from padded image back to original image
-
-    Args:
-        x1, y1, x2, y2: Coordinates in padded image
-        dims: Image dimensions object
-
-    Returns:
-        tuple: (x1, y1, x2, y2) coordinates in original image
-    """
-    try:
-        # Calculate padding offsets
-        top = (dims.padded_h - dims.original_h) // 2
-        left = (dims.padded_w - dims.original_w) // 2
-
-        # Map back to original coordinates
-        orig_x1 = max(0, x1 - left)
-        orig_y1 = max(0, y1 - top)
-        orig_x2 = min(dims.original_w, x2 - left)
-        orig_y2 = min(dims.original_h, y2 - top)
-
-        # Ensure we have a valid box (width and height > 0)
-        if orig_x2 <= orig_x1:
-            orig_x2 = min(orig_x1 + 1, dims.original_w)
-        if orig_y2 <= orig_y1:
-            orig_y2 = min(orig_y1 + 1, dims.original_h)
-
-        return int(orig_x1), int(orig_y1), int(orig_x2), int(orig_y2)
-    except Exception as e:
-        print(f"map_to_original_coordinates error: {str(e)}")
-        # Return safe coordinates
-        return 0, 0, min(100, dims.original_w), min(100, dims.original_h)
-
+    w_ratio, h_ratio = original_w / resized_w, original_h / resized_h
+    x1 = int(coords[0] * w_ratio)
+    y1 = int(coords[1] * h_ratio)
+    x2 = int(coords[2] * w_ratio)
+    y2 = int(coords[3] * h_ratio)
 
 def process_coordinates(coords, padded_image, dims: ImageDimensions, previous_box=None):
     """Process and adjust coordinates
@@ -367,32 +351,42 @@ def prepare_image(image, pdf_name=None, page_number=None, processed_images_dir=N
         dimensions = ImageDimensions(original_w=w, original_h=h, padded_w=w, padded_h=h)
         # Return a black image of the same size
         return np.zeros((h, w, 3), dtype=np.uint8), dimensions
-
+      
+    x1 = max(0, min(x1, original_w - 1))
+    y1 = max(0, min(y1, original_h - 1))
+    x2 = max(x1 + 1, min(x2, original_w))
+    y2 = max(y1 + 1, min(y2, original_h))
+    return x1, y1, x2, y2
 
 def setup_output_dirs(save_dir):
     """Create necessary output directories"""
     os.makedirs(save_dir, exist_ok=True)
     os.makedirs(os.path.join(save_dir, "markdown"), exist_ok=True)
-    os.makedirs(os.path.join(save_dir, "recognition_json"), exist_ok=True)
+    os.makedirs(os.path.join(save_dir, "output_json"), exist_ok=True)
     os.makedirs(os.path.join(save_dir, "markdown", "figures"), exist_ok=True)
+    os.makedirs(os.path.join(save_dir, "layout_visualization"), exist_ok=True)
 
 
-def save_outputs(recognition_results, image_path, save_dir):
+def save_outputs(recognition_results, image, image_name, save_dir, post_process=False):
     """Save JSON and markdown outputs"""
-    basename = os.path.splitext(os.path.basename(image_path))[0]
 
     # Save JSON file
-    json_path = os.path.join(save_dir, "recognition_json", f"{basename}.json")
+    json_path = os.path.join(save_dir, "output_json", f"{image_name}.json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(recognition_results, f, ensure_ascii=False, indent=2)
 
     # Generate and save markdown file
-    markdown_converter = MarkdownConverter()
+    markdown_converter = MarkdownConverter(post_process)
     markdown_content = markdown_converter.convert(recognition_results)
-    markdown_path = os.path.join(save_dir, "markdown", f"{basename}.md")
+    markdown_path = os.path.join(save_dir, "markdown", f"{image_name}.md")
     with open(markdown_path, "w", encoding="utf-8") as f:
         f.write(markdown_content)
 
+    # visualize layout
+    # Save visualization (pass original PIL image for coordinate mapping)
+    vis_path = os.path.join(save_dir, "layout_visualization", f"{image_name}_layout.png")
+
+    visualize_layout(image, recognition_results, vis_path)
     return json_path
 
 
@@ -432,31 +426,24 @@ def crop_margin(img: Image.Image) -> Image.Image:
         print(f"crop_margin error: {str(e)}")
         return img  # Return original image on error
 
-def visualize_layout(image_path, layout_results, save_path, alpha=0.3, original_image=None):
+def visualize_layout(image_path, layout_results, save_path, alpha=0.3):
     """Visualize layout detection results on the image
     
     Args:
         image_path: Path to the input image
-        layout_results: List of (bbox, label) tuples with coordinates in 896x896 space
+        layout_results: List of (bbox, label, tags) dict
         save_path: Path to save the visualization
         alpha: Transparency of the overlay (0-1, lower = more transparent)
-        original_image: Original PIL image (for coordinate mapping)
     """
     # Read image
     if isinstance(image_path, str):
         image = cv2.imread(image_path)
-        if original_image is None:
-            original_image = Image.open(image_path).convert("RGB")
     else:
         # If it's already a PIL Image
         image = cv2.cvtColor(np.array(image_path), cv2.COLOR_RGB2BGR)
-        original_image = image_path
     
     if image is None:
         raise ValueError(f"Failed to load image from {image_path}")
-    
-    # Get padded image and dimensions using the same function as document processing
-    padded_image, dims = prepare_image(original_image)
     
     # Assign colors to all elements at once
     element_colors = assign_colors_to_elements(len(layout_results))
@@ -465,29 +452,24 @@ def visualize_layout(image_path, layout_results, save_path, alpha=0.3, original_
     overlay = image.copy()
     
     # Draw each layout element
-    for idx, (bbox, label) in enumerate(layout_results):
-        coords = [float(c) for c in bbox]
-        
-        # Use the same coordinate processing function as document parsing
-        try:
-            _, _, _, _, orig_x1, orig_y1, orig_x2, orig_y2, _ = process_coordinates(
-                coords, padded_image, dims, previous_box=None
-            )
-        except Exception as e:
-            print(f"Error processing coordinates for element {idx}: {str(e)}")
-            continue
+    for idx, layout_res in enumerate(layout_results):
+        if "bbox" not in layout_res:
+            return
+        bbox, label, reading_order, tags = layout_res["bbox"], layout_res["label"], layout_res["reading_order"], layout_res["tags"]
+       
+        x1,y1,x2,y2 = bbox
         
         # Get color for this element (assigned by order, not by label)
         color = element_colors[idx]
         
         # Draw filled rectangle with transparency
-        cv2.rectangle(overlay, (orig_x1, orig_y1), (orig_x2, orig_y2), color, -1)
+        cv2.rectangle(overlay, (x1,y1), (x2,y2), color, -1)
         
         # Draw border
-        cv2.rectangle(image, (orig_x1, orig_y1), (orig_x2, orig_y2), color, 3)
+        cv2.rectangle(image, (x1,y1), (x2,y2), color, 3)
         
         # Add label text with background at the top-left corner (outside the box)
-        label_text = f"{idx+1}: {label}"
+        label_text = f"{reading_order}: {label} | {tags}"
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 0.5
         thickness = 1
@@ -498,12 +480,12 @@ def visualize_layout(image_path, layout_results, save_path, alpha=0.3, original_
         )
         
         # Position text above the box (outside)
-        text_x = orig_x1
-        text_y = orig_y1 - 5  # 5 pixels above the box
+        text_x = x1
+        text_y = y1 - 5  # 5 pixels above the box
         
         # If text would go outside the image at the top, put it inside the box instead
         if text_y - text_height < 0:
-            text_y = orig_y1 + text_height + 5
+            text_y = y1 + text_height + 5
         
         # Draw text background
         cv2.rectangle(
@@ -530,61 +512,7 @@ def visualize_layout(image_path, layout_results, save_path, alpha=0.3, original_
     
     # Save the result
     cv2.imwrite(save_path, result)
-    print(f"Layout visualization saved to {save_path}")
-
-
-def save_layout_json(layout_results, image_path, save_dir, original_image=None):
-    """Save layout results to JSON file
-    
-    Args:
-        layout_results: List of (bbox, label) tuples with coordinates in 896x896 space
-        image_path: Path to the input image
-        save_dir: Directory to save the JSON file
-        original_image: Original PIL image (for coordinate mapping)
-    """
-    # Get original image if not provided
-    if original_image is None and isinstance(image_path, str):
-        original_image = Image.open(image_path).convert("RGB")
-    elif original_image is None:
-        original_image = image_path
-    
-    # Get padded image and dimensions using the same function as document processing
-    padded_image, dims = prepare_image(original_image)
-    
-    # Prepare JSON structure
-    layout_data = {
-        "image": os.path.basename(image_path) if isinstance(image_path, str) else "pdf_page",
-        "image_width": dims.original_w,
-        "image_height": dims.original_h,
-        "num_elements": len(layout_results),
-        "elements": []
-    }
-    
-    for idx, (bbox, label) in enumerate(layout_results):
-        coords = [float(c) for c in bbox]
-        try:
-            _, _, _, _, orig_x1, orig_y1, orig_x2, orig_y2, _ = process_coordinates(
-                coords, padded_image, dims, previous_box=None
-            )
-            element = {
-                "label": label,
-                "bbox": [int(orig_x1), int(orig_y1), int(orig_x2), int(orig_y2)],
-                "reading_order": idx
-            }
-            layout_data["elements"].append(element)
-        except Exception as e:
-            print(f"Error processing coordinates for element {idx}: {str(e)}")
-            continue
-    
-    # Save JSON
-    base_name = os.path.splitext(os.path.basename(image_path) if isinstance(image_path, str) else "page")[0]
-    json_path = os.path.join(save_dir, f"{base_name}_layout.json")
-    
-    with open(json_path, 'w', encoding='utf-8') as f:
-        json.dump(layout_data, f, indent=2, ensure_ascii=False)
-    
-    print(f"Layout JSON saved to {json_path}")
-    return json_path
+    # print(f"Layout visualization saved to {save_path}")
 
 
 def get_color_palette():
@@ -636,5 +564,110 @@ def assign_colors_to_elements(num_elements):
         # Cycle through the palette if we have more elements than colors
         color_idx = i % len(palette)
         colors.append(palette[color_idx])
-    
+        
     return colors
+
+def resize_img(image, max_size=1600, min_size=28):
+    width, height = image.size
+    if max(width, height) < max_size and min(width, height) >= 28:
+        return image
+    
+    if max(width, height) > max_size:
+        if width > height:
+            new_width = max_size
+            new_height = int(height * (max_size / width))
+        else:
+            new_height = max_size
+            new_width = int(width * (max_size / height))
+        image = image.resize((new_width, new_height))
+        width, height = image.size
+    
+    if min(width, height) < 28:
+        if width < height:
+            new_width = min_size
+            new_height = int(height * (min_size / width))
+        else:
+            new_height = min_size
+            new_width = int(width * (min_size / height))
+        image = image.resize((new_width, new_height))
+
+    return image
+
+
+def calculate_iou_matrix(boxes):
+    """Vectorized IoU matrix calculation [N, N]
+    
+    Args:
+        boxes: List of bounding boxes in [x1, y1, x2, y2] format
+        
+    Returns:
+        numpy.ndarray: IoU matrix of shape [N, N]
+    """
+    boxes = np.array(boxes)  # [N, 4]
+    
+    # Calculate areas
+    areas = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])  # [N]
+    
+    # Broadcast to calculate intersection
+    lt = np.maximum(boxes[:, None, :2], boxes[None, :, :2])  # [N, N, 2]
+    rb = np.minimum(boxes[:, None, 2:], boxes[None, :, 2:])  # [N, N, 2]
+    
+    wh = np.clip(rb - lt, 0, None)  # [N, N, 2]
+    inter = wh[:, :, 0] * wh[:, :, 1]  # [N, N]
+    
+    # Calculate IoU
+    union = areas[:, None] + areas[None, :] - inter
+    iou = inter / np.clip(union, 1e-6, None)
+    
+    return iou
+
+
+def check_bbox_overlap(layout_results_list, image, iou_threshold=0.1, overlap_box_ratio=0.25):
+    """Check if bounding boxes have significant overlaps, indicating a distorted/photographed document
+    
+    If more than 60% of boxes have overlaps (IoU > threshold with at least 1 other box),
+    treat as photographed document.
+    
+    Args:
+        layout_results_list: List of (bbox, label, tags) tuples
+        image: PIL Image object
+        iou_threshold: IoU threshold to consider two boxes as overlapping (default: 0.3)
+        overlap_box_ratio: Ratio threshold of boxes with overlaps (default: 0.6, i.e., 60%)
+    
+    Returns:
+        bool: True if significant overlap detected (should treat as distorted_page)
+    """
+    if len(layout_results_list) <= 1:
+        return False
+    
+    # Convert to absolute coordinates
+    bboxes = []
+    for bbox, label, tags in layout_results_list:
+        x1, y1, x2, y2 = process_coordinates(bbox, image)
+        bboxes.append([x1, y1, x2, y2])
+    
+    # Vectorized IoU matrix calculation
+    iou_matrix = calculate_iou_matrix(bboxes)
+    
+    # Check if each box has overlap with any other box (excluding itself)
+    overlap_mask = iou_matrix > iou_threshold
+    np.fill_diagonal(overlap_mask, False)  # Exclude self
+    has_overlap = overlap_mask.any(axis=1)  # Whether each box has overlap
+    
+    # Count boxes with overlaps
+    overlap_count = has_overlap.sum()
+    total_boxes = len(bboxes)
+    overlap_ratio = overlap_count / total_boxes
+    
+    # print(f"Overlap detection: {overlap_count}/{total_boxes} boxes have overlaps (ratio: {overlap_ratio:.2%})")
+    
+    # If more than 60% boxes have overlaps, treat as photographed document
+    if overlap_ratio > overlap_box_ratio:
+        print(f"⚠️ High overlap detected ({overlap_ratio:.2%} > {overlap_box_ratio:.2%}), treating as distorted/photographed document")
+        return True
+    
+    return False
+
+if __name__ == "__main__":
+    bbox_str = "[210,136,910,172][sec_0][PAIR_SEP][202,217,921,325][para][author][PAIR_SEP][520,341,604,367][para][PAIR_SEP][290,404,384,432][sec_1][paper_abstract][PAIR_SEP][156,448,520,723][para][paper_abstract][PAIR_SEP][125,740,290,768][sec_1][PAIR_SEP][125,781,552,1143][para][PAIR_SEP][125,1144,552,1400][para][RELATION_SEP][573,406,1000,561][para][PAIR_SEP][573,581,1001,943][para][PAIR_SEP][573,962,1001,1222][para][PAIR_SEP][573,1241,1001,1475][para][PAIR_SEP][126,1410,551,1470][fnote][PAIR_SEP][21,499,63,1163][watermark][meta_num]"
+    print(parse_layout_string(bbox_str))

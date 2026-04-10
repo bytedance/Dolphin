@@ -1,4 +1,4 @@
-"""
+""" 
 Copyright (c) 2025 Bytedance Ltd. and/or its affiliates
 SPDX-License-Identifier: MIT
 """
@@ -9,7 +9,8 @@ import os
 
 import torch
 from PIL import Image
-from transformers import AutoProcessor, VisionEncoderDecoderModel
+from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
+from qwen_vl_utils import process_vision_info
 
 from utils.utils import *
 
@@ -23,80 +24,114 @@ class DOLPHIN:
         """
         # Load model from local path or Hugging Face hub
         self.processor = AutoProcessor.from_pretrained(model_id_or_path)
-        self.model = VisionEncoderDecoderModel.from_pretrained(model_id_or_path)
+        self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(model_id_or_path)
         self.model.eval()
         
         # Set device and precision
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model.to(self.device)
-        # Use float16 on CUDA, float32 on CPU
+
         if self.device == "cuda":
-            self.model = self.model.half()
+            self.model = self.model.bfloat16()
         else:
             self.model = self.model.float()
         
         # set tokenizer
         self.tokenizer = self.processor.tokenizer
-        
+        self.tokenizer.padding_side = "left"
+
     def chat(self, prompt, image):
-        """Process an image with the given prompt
+        # Check if we're dealing with a batch
+        is_batch = isinstance(image, list)
         
-        Args:
-            prompt: Text prompt to guide the model
-            image: PIL Image to process
-            
-        Returns:
-            Generated text from the model
-        """
-        # Prepare image
-        pixel_values = self.processor(image, return_tensors="pt").pixel_values
-        # Use float16 on CUDA, float32 on CPU
-        if self.device == "cuda":
-            pixel_values = pixel_values.pixel_values.half().to(self.device)
+        if not is_batch:
+            # Single image, wrap it in a list for consistent processing
+            images = [image]
+            prompts = [prompt]
         else:
-            pixel_values = pixel_values.pixel_values.float().to(self.device)
-            
-        # Prepare prompt
-        prompt = f"<s>{prompt} <Answer/>"
-        prompt_ids = self.tokenizer(
-            prompt, 
-            add_special_tokens=False, 
-            return_tensors="pt"
-        ).input_ids.to(self.device)
+            # Batch of images
+            images = image
+            prompts = prompt if isinstance(prompt, list) else [prompt] * len(images)
         
-        decoder_attention_mask = torch.ones_like(prompt_ids)
+        assert len(images) == len(prompts)
         
-        # Generate text
-        outputs = self.model.generate(
-            pixel_values=pixel_values.to(self.device),
-            decoder_input_ids=prompt_ids,
-            decoder_attention_mask=decoder_attention_mask,
-            min_length=1,
-            max_length=4096,
-            pad_token_id=self.tokenizer.pad_token_id,
-            eos_token_id=self.tokenizer.eos_token_id,
-            use_cache=True,
-            bad_words_ids=[[self.tokenizer.unk_token_id]],
-            return_dict_in_generate=True,
-            do_sample=False,
-            num_beams=1
+        # preprocess all images
+        processed_images = [resize_img(img) for img in images]
+        # generate all messages
+        all_messages = []
+        for img, question in zip(processed_images, prompts):
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "image": img,
+                        },
+                        {"type": "text", "text": question}
+                    ],
+                }
+            ]
+            all_messages.append(messages)
+
+        # prepare all texts
+        texts = [
+            self.processor.apply_chat_template(
+                msgs, tokenize=False, add_generation_prompt=True
+            )
+            for msgs in all_messages
+        ]
+
+        # collect all image inputs
+        all_image_inputs = []
+        all_video_inputs = None
+        for msgs in all_messages:
+            image_inputs, video_inputs = process_vision_info(msgs)
+            all_image_inputs.extend(image_inputs)
+
+        # prepare model inputs
+        inputs = self.processor(
+            text=texts,
+            images=all_image_inputs if all_image_inputs else None,
+            videos=all_video_inputs if all_video_inputs else None,
+            padding=True,
+            return_tensors="pt",
         )
+        inputs = inputs.to(self.model.device)
+
+        # inference
+        generated_ids = self.model.generate(
+            **inputs,
+            max_new_tokens=4096,
+            do_sample=False,
+            temperature=None,
+            # repetition_penalty=1.05
+        )
+        generated_ids_trimmed = [
+            out_ids[len(in_ids):] 
+            for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
         
-        # Process the output
-        sequence = self.tokenizer.batch_decode(outputs.sequences, skip_special_tokens=False)[0]
-        sequence = sequence.replace(prompt, "").replace("<pad>", "").replace("</s>", "").strip()
-        
-        return sequence
+        results = self.processor.batch_decode(
+            generated_ids_trimmed, 
+            skip_special_tokens=True, 
+            clean_up_tokenization_spaces=False
+        )
+
+        # Return a single result for single image input
+        if not is_batch:
+            return results[0]
+        return results
 
 
-def process_layout(input_path, model, save_dir, alpha=0.3):
+
+def process_layout(input_path, model, save_dir):
     """Process layout detection for image or PDF
     
     Args:
         input_path: Path to input image or PDF
         model: DOLPHIN model instance
         save_dir: Directory to save results
-        alpha: Transparency for visualization overlay
     """
     file_ext = os.path.splitext(input_path)[1].lower()
     
@@ -115,16 +150,16 @@ def process_layout(input_path, model, save_dir, alpha=0.3):
             page_name = f"{base_name}_page_{page_idx + 1:03d}"
             
             # Process layout for this page
-            process_single_layout(pil_image, model, save_dir, page_name, alpha)
+            process_single_layout(pil_image, model, save_dir, page_name)
     
     else:
         # Process regular image file
         pil_image = Image.open(input_path).convert("RGB")
         base_name = os.path.splitext(os.path.basename(input_path))[0]
-        process_single_layout(pil_image, model, save_dir, base_name, alpha, input_path)
+        process_single_layout(pil_image, model, save_dir, base_name)
 
 
-def process_single_layout(pil_image, model, save_dir, image_name, alpha=0.3, original_path=None):
+def process_single_layout(pil_image, model, save_dir, image_name):
     """Process layout for a single image
     
     Args:
@@ -132,37 +167,30 @@ def process_single_layout(pil_image, model, save_dir, image_name, alpha=0.3, ori
         model: DOLPHIN model instance
         save_dir: Directory to save results
         image_name: Name for the output files
-        alpha: Transparency for visualization overlay
-        original_path: Original image path (for regular images, None for PDF pages)
     """
     # Parse layout
     print("Parsing layout and reading order...")
-    layout_output = model.chat("Parse the reading order of this document.", pil_image)
-    
+    layout_results = model.chat("Parse the reading order of this document.", pil_image)
+
     # Parse the layout string
-    layout_results = parse_layout_string(layout_output)
+    layout_results_list = parse_layout_string(layout_results)
+    if not layout_results_list or not (layout_results.startswith("[") and layout_results.endswith("]")):
+        layout_results_list = [([0, 0, *pil_image.size], 'distorted_page', [])]
     
-    print(f"Detected {len(layout_results)} layout elements")
-    
-    # Save visualization (pass original PIL image for coordinate mapping)
-    vis_path = os.path.join(save_dir, f"{image_name}_layout.png")
-    visualize_layout(
-        pil_image if original_path is None else original_path, 
-        layout_results, 
-        vis_path, 
-        alpha,
-        original_image=pil_image  # Pass PIL image for coordinate mapping
-    )
-    
-    # Save JSON (pass original PIL image for coordinate mapping)
-    json_path = save_layout_json(
-        layout_results, 
-        original_path if original_path else image_name,
-        save_dir,
-        original_image=pil_image  # Pass PIL image for coordinate mapping
-    )
-    
-    return layout_results, vis_path, json_path
+    # map bbox to original image coordinates
+    recognition_results = []
+    reading_order = 0
+    for bbox, label, tags in layout_results_list:
+        x1, y1, x2, y2 = process_coordinates(bbox, pil_image)
+        recognition_results.append({
+                        "label": label,
+                        "bbox": [x1, y1, x2, y2],
+                        "text": "", # empty for now
+                        "reading_order": reading_order,
+                        "tags": tags,
+                    })
+        reading_order += 1
+    json_path = save_outputs(recognition_results, pil_image, image_name, save_dir)
 
 
 def main():
@@ -179,12 +207,6 @@ def main():
         type=str,
         default=None,
         help="Directory to save results (default: same as input directory)",
-    )
-    parser.add_argument(
-        "--alpha",
-        type=float,
-        default=0.2,
-        help="Transparency of the overlay (0-1, lower = more transparent, default: 0.3)",
     )
     args = parser.parse_args()
     
@@ -236,7 +258,6 @@ def main():
                 input_path=file_path,
                 model=model,
                 save_dir=save_dir,
-                alpha=args.alpha
             )
             print(f"\n✓ Processing completed for {file_path}")
             

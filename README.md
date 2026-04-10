@@ -6,7 +6,7 @@
   <a href="https://arxiv.org/abs/2505.14059">
     <img src="https://img.shields.io/badge/Paper-arXiv-red">
   </a>
-  <a href="https://huggingface.co/ByteDance/Dolphin-1.5">
+  <a href="https://huggingface.co/ByteDance/Dolphin-v2">
     <img src="https://img.shields.io/badge/HuggingFace-Dolphin-yellow">
   </a>
   <a href="https://github.com/bytedance/Dolphin">
@@ -25,15 +25,15 @@
 </div>
 
 # Dolphin: Document Image Parsing via Heterogeneous Anchor Prompting
+Dolphin-v2 is an enhanced universal document parsing model that substantially improves upon the original Dolphin. It seamlessly handles any document type—whether digital-born or photographed—through a document-type-aware two-stage architecture with scalable anchor prompting.
 
-Dolphin (**Do**cument Image **P**arsing via **H**eterogeneous Anchor Prompt**in**g) is a novel multimodal document image parsing model (**0.3B**) following an analyze-then-parse paradigm. This repository contains the demo code and pre-trained models for Dolphin.
 
 ## 📑 Overview
 
-Document image parsing is challenging due to its complexly intertwined elements such as text paragraphs, figures, formulas, and tables. Dolphin addresses these challenges through a two-stage approach:
+Document image parsing is challenging due to diverse document types and complexly intertwined elements such as text paragraphs, figures, formulas, tables, and code blocks. Dolphin-v2 addresses these challenges through a document-type-aware two-stage approach:
 
-1. **🔍 Stage 1**: Comprehensive page-level layout analysis by generating element sequence in natural reading order
-2. **🧩 Stage 2**: Efficient parallel parsing of document elements using heterogeneous anchors and task-specific prompts
+1. **🔍 Stage 1**: Document type classification (digital vs. photographed) + layout analysis with reading order prediction
+2. **🧩 Stage 2**: Hybrid parsing strategy - holistic parsing for photographed documents, parallel element-wise parsing for digital documents
 
 <div align="center">
   <img src="./assets/framework.png" width="680">
@@ -45,6 +45,7 @@ Dolphin achieves promising performance across diverse page-level and element-lev
 Try our demo on [Demo-Dolphin](https://huggingface.co/spaces/ByteDance/Dolphin). -->
 
 ## 📅 Changelog
+- 🔥 **2025.12.12** Released *Dolphin-v2* model. Upgraded to 3B parameters with 21-element detection, attribute field extraction, dedicated formula/code parsing, and robust photographed document parsing. (Dolphin-1.5 moved to [v1.5 branch](https://github.com/bytedance/Dolphin/tree/v1.5))
 - 🔥 **2025.10.16** Released *Dolphin-1.5* model. While maintaining the lightweight 0.3B architecture, this version achieves significant parsing improvements. (Dolphin 1.0 moved to [v1.0 branch](https://github.com/bytedance/Dolphin/tree/v1.0))
 - 🔥 **2025.07.10** Released the *Fox-Page Benchmark*, a manually refined subset of the original [Fox dataset](https://github.com/ucaslcl/Fox). Download via: [Baidu Yun](https://pan.baidu.com/share/init?surl=t746ULp6iU5bUraVrPlMSw&pwd=fox1) | [Google Drive](https://drive.google.com/file/d/1yZQZqI34QCqvhB4Tmdl3X_XEvYvQyP0q/view?usp=sharing).
 - 🔥 **2025.06.30** Added [TensorRT-LLM support](https://github.com/bytedance/Dolphin/blob/master/deployment/tensorrt_llm/ReadMe.md) for accelerated inference！
@@ -57,39 +58,11 @@ Try our demo on [Demo-Dolphin](https://huggingface.co/spaces/ByteDance/Dolphin).
 ## 📈 Performance
 
 <table style="width:90%; border-collapse: collapse; text-align: center;">
-    <caption>Comprehensive evaluation of document parsing on Fox-Page and Dolphin-Page</caption>
-    <thead>
-        <tr>
-            <th style="text-align: center !important;">Model</th>
-            <th style="text-align: center !important;">Fox-Page-en<sup>Edit</sup>&#x2193;</th>
-            <th style="text-align: center !important;">Fox-Page-zh<sup>Edit</sup>&#x2193;</th>
-            <th style="text-align: center !important;">Dolphin-Page-<sup>Edit</sup>&#x2193;</th>
-            <th style="text-align: center !important;">Evg<sup>Edit</sup>&#x2193;</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td>Dolphin</td>
-            <td>0.0114</td>
-            <td>0.0131</td>
-            <td>0.1028</td>
-            <td>0.0424</td>
-        </tr>
-        <tr>
-            <td>Dolphin-1.5</td>
-            <td><strong>0.0074</strong></td>
-            <td><strong>0.0077</strong></td>
-            <td><strong>0.0743</strong></td>
-            <td><strong>0.0298</strong></td>
-        </tr>
-    </tbody>
-</table>
-
-<table style="width:90%; border-collapse: collapse; text-align: center;">
     <caption>Comprehensive evaluation of document parsing on OmniDocBench (v1.5)</caption>
     <thead>
         <tr>
             <th style="text-align: center !important;">Model</th>
+            <th style="text-align: center !important;">Size</th>
             <th style="text-align: center !important;">Overall&#x2191;</th>
             <th style="text-align: center !important;">Text<sup>Edit</sup>&#x2193;</th>
             <th style="text-align: center !important;">Formula<sup>CDM</sup>&#x2191;</th>
@@ -101,6 +74,7 @@ Try our demo on [Demo-Dolphin](https://huggingface.co/spaces/ByteDance/Dolphin).
     <tbody>
         <tr>
             <td>Dolphin</td>
+            <td>0.3B</td>
             <td>74.67</td>
             <td>0.125</td>
             <td>67.85</td>
@@ -110,12 +84,23 @@ Try our demo on [Demo-Dolphin](https://huggingface.co/spaces/ByteDance/Dolphin).
         </tr>
         <tr>
             <td>Dolphin-1.5</td>
-            <td><strong>83.21</strong></td>
-            <td><strong>0.092</strong></td>
-            <td><strong>80.78</strong></td>
-            <td><strong>78.06</strong></td>
-            <td><strong>84.10</strong></td>
-            <td><strong>0.080</strong></td>
+            <td>0.3B</td>
+            <td>85.06</td>
+            <td>0.085</td>
+            <td>79.44</td>
+            <td>84.25</td>
+            <td>88.06</td>
+            <td>0.071</td>
+        </tr>
+        <tr>
+            <td>Dolphin-v2</td>
+            <td>3B</td>
+            <td><strong>89.78</strong></td>
+            <td><strong>0.054</strong></td>
+            <td><strong>87.63</strong></td>
+            <td><strong>87.02</strong></td>
+            <td><strong>90.48</strong></td>
+            <td><strong>0.054</strong></td>
         </tr>
     </tbody>
 </table>
@@ -133,17 +118,17 @@ Try our demo on [Demo-Dolphin](https://huggingface.co/spaces/ByteDance/Dolphin).
    pip install -r requirements.txt
    ```
 
-3. Download the pre-trained models of *Dolphin-1.5*:
+3. Download the pre-trained models of *Dolphin-v2*:
 
-   Visit our Huggingface [model card](https://huggingface.co/ByteDance/Dolphin-1.5), or download model by:
+   Visit our Huggingface [model card](https://huggingface.co/ByteDance/Dolphin-v2), or download model by:
    
    ```bash
    # Download the model from Hugging Face Hub
    git lfs install
-   git clone https://huggingface.co/ByteDance/Dolphin-1.5 ./hf_model
+   git clone https://huggingface.co/ByteDance/Dolphin-v2 ./hf_model
    # Or use the Hugging Face CLI
    pip install huggingface_hub
-   huggingface-cli download ByteDance/Dolphin-1.5 --local-dir ./hf_model
+   huggingface-cli download ByteDance/Dolphin-v2 --local-dir ./hf_model
    ```
 
 ## ⚡ Inference

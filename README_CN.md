@@ -6,7 +6,7 @@
   <a href="https://arxiv.org/abs/2505.14059">
     <img src="https://img.shields.io/badge/论文-arXiv-red">
   </a>
-  <a href="https://huggingface.co/ByteDance/Dolphin-1.5">
+  <a href="https://huggingface.co/ByteDance/Dolphin-v2">
     <img src="https://img.shields.io/badge/HuggingFace-Dolphin-yellow">
   </a>
   <a href="https://github.com/bytedance/Dolphin">
@@ -41,10 +41,8 @@ Dolphin（**Do**cument Image **P**arsing via **H**eterogeneous Anchor Prompt**in
 
 Dolphin在多样化的页面级和元素级解析任务中取得了优异的性能，同时通过其轻量级架构和并行解析机制确保了卓越的效率。
 
-<!-- ## 🚀 演示
-在 [Demo-Dolphin](https://huggingface.co/spaces/ByteDance/Dolphin) 上试用我们的演示。 -->
-
 ## 📅 更新日志
+- 🔥 **2025.12.12** *Dolphin-v2* 开源！支持 21 类元素检测、属性字段提取、代码专用解析，以及拍照文档解析。（原1.5版本已迁移至[v1.5分支](https://github.com/bytedance/Dolphin/tree/v1.5)）
 - 🔥 **2025.10.16** *Dolphin-1.5* 开源！在保持轻量级0.3B架构的同时，该版本实现了显著的解析性能提升。（原1.0版本已迁移至[v1.0分支](https://github.com/bytedance/Dolphin/tree/v1.0)）
 - 🔥 **2025.07.10** *Fox-Page* 基准测试开源。这是原始 [Fox 数据集](https://github.com/ucaslcl/Fox) 人工矫正标注后的版本。下载地址：[百度网盘](https://pan.baidu.com/share/init?surl=t746ULp6iU5bUraVrPlMSw&pwd=fox1) | [Google Drive](https://drive.google.com/file/d/1yZQZqI34QCqvhB4Tmdl3X_XEvYvQyP0q/view?usp=sharing)。
 - 🔥 **2025.06.30** 新增[TensorRT-LLM](https://github.com/bytedance/Dolphin/blob/master/deployment/tensorrt_llm/ReadMe.md)支持，提升推理速度！
@@ -57,39 +55,11 @@ Dolphin在多样化的页面级和元素级解析任务中取得了优异的性�
 ## 📈 性能表现
 
 <table style="width:90%; border-collapse: collapse; text-align: center;">
-    <caption>Fox-Page 和 Dolphin-Page 测试基准上评估结果</caption>
-    <thead>
-        <tr>
-            <th style="text-align: center !important;">模型</th>
-            <th style="text-align: center !important;">Fox-Page-en<sup>Edit</sup>&#x2193;</th>
-            <th style="text-align: center !important;">Fox-Page-zh<sup>Edit</sup>&#x2193;</th>
-            <th style="text-align: center !important;">Dolphin-Page<sup>Edit</sup>&#x2193;</th>
-            <th style="text-align: center !important;">平均<sup>Edit</sup>&#x2193;</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-             <td>Dolphin</td>
-            <td>0.0114</td>
-            <td>0.0131</td>
-            <td>0.1028</td>
-            <td>0.0424</td>
-        </tr>
-        <tr>
-            <td>Dolphin-1.5</td>
-            <td><strong>0.0074</strong></td>
-            <td><strong>0.0077</strong></td>
-            <td><strong>0.0743</strong></td>
-            <td><strong>0.0298</strong></td>
-        </tr>
-    </tbody>
-</table>
-
-<table style="width:90%; border-collapse: collapse; text-align: center;">
     <caption>OmniDocBench (v1.5) 测试基准上评估结果</caption>
     <thead>
         <tr>
             <th style="text-align: center !important;">模型</th>
+            <th style="text-align: center !important;">参数</th>
             <th style="text-align: center !important;">总体&#x2191;</th>
             <th style="text-align: center !important;">文本<sup>Edit</sup>&#x2193;</th>
             <th style="text-align: center !important;">公式<sup>CDM</sup>&#x2191;</th>
@@ -98,9 +68,9 @@ Dolphin在多样化的页面级和元素级解析任务中取得了优异的性�
             <th style="text-align: center !important;">阅读顺序<sup>Edit</sup>&#x2193;</th>
         </tr>
     </thead>
-    <tbody>
         <tr>
             <td>Dolphin</td>
+            <td>0.3B</td>
             <td>74.67</td>
             <td>0.125</td>
             <td>67.85</td>
@@ -110,12 +80,23 @@ Dolphin在多样化的页面级和元素级解析任务中取得了优异的性�
         </tr>
         <tr>
             <td>Dolphin-1.5</td>
-            <td><strong>83.21</strong></td>
-            <td><strong>0.092</strong></td>
-            <td><strong>80.78</strong></td>
-            <td><strong>78.06</strong></td>
-            <td><strong>84.10</strong></td>
-            <td><strong>0.080</strong></td>
+            <td>0.3B</td>
+            <td>85.06</td>
+            <td>0.085</td>
+            <td>79.44</td>
+            <td>84.25</td>
+            <td>88.06</td>
+            <td>0.071</td>
+        </tr>
+        <tr>
+            <td>Dolphin-v2</td>
+            <td>0.3B</td>
+            <td><strong>89.78</strong></td>
+            <td><strong>0.054</strong></td>
+            <td><strong>87.63</strong></td>
+            <td><strong>87.02</strong></td>
+            <td><strong>90.48</strong></td>
+            <td><strong>0.054</strong></td>
         </tr>
     </tbody>
 </table>
@@ -133,16 +114,16 @@ Dolphin在多样化的页面级和元素级解析任务中取得了优异的性�
    pip install -r requirements.txt
    ```
 
-3. 使用以下选项之一下载 *Dolphin-1.5* 的预训练模型：
-   访问我们的Huggingface [模型卡片](https://huggingface.co/ByteDance/Dolphin-1.5)，或通过以下方式下载模型：
+3. 使用以下选项之一下载 *Dolphin-v2* 的预训练模型：
+   访问我们的Huggingface [模型卡片](https://huggingface.co/ByteDance/Dolphin-v2)，或通过以下方式下载模型：
    
    ```bash
    # 从Hugging Face Hub下载模型
    git lfs install
-   git clone https://huggingface.co/ByteDance/Dolphin-1.5 ./hf_model
+   git clone https://huggingface.co/ByteDance/Dolphin-v2 ./hf_model
    # 或使用Hugging Face CLI
    pip install huggingface_hub
-   huggingface-cli download ByteDance/Dolphin-1.5 --local-dir ./hf_model
+   huggingface-cli download ByteDance/Dolphin-v2 --local-dir ./hf_model
    ```
 
 ## ⚡ 推理

@@ -7,9 +7,11 @@ import argparse
 import glob
 import os
 
+import cv2
 import torch
 from PIL import Image
-from transformers import AutoProcessor, VisionEncoderDecoderModel
+from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
+from qwen_vl_utils import process_vision_info
 
 from utils.utils import *
 
@@ -23,70 +25,98 @@ class DOLPHIN:
         """
         # Load model from local path or Hugging Face hub
         self.processor = AutoProcessor.from_pretrained(model_id_or_path)
-        self.model = VisionEncoderDecoderModel.from_pretrained(model_id_or_path)
+        self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(model_id_or_path)
         self.model.eval()
         
         # Set device and precision
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model.to(self.device)
-        # Use float16 on CUDA, float32 on CPU
+
         if self.device == "cuda":
-            self.model = self.model.half()
+            self.model = self.model.bfloat16()
         else:
             self.model = self.model.float()
         
         # set tokenizer
         self.tokenizer = self.processor.tokenizer
-        
+        self.tokenizer.padding_side = "left"
+
     def chat(self, prompt, image):
-        """Process an image with the given prompt
+        # Check if we're dealing with a batch
+        is_batch = isinstance(image, list)
         
-        Args:
-            prompt: Text prompt to guide the model
-            image: PIL Image to process
-            
-        Returns:
-            Generated text from the model
-        """
-        # Prepare image
-        pixel_values = self.processor(image, return_tensors="pt").pixel_values
-        # Use float16 on CUDA, float32 on CPU
-        if self.device == "cuda":
-            pixel_values = pixel_values.pixel_values.half().to(self.device)
+        if not is_batch:
+            # Single image, wrap it in a list for consistent processing
+            images = [image]
+            prompts = [prompt]
         else:
-            pixel_values = pixel_values.pixel_values.float().to(self.device)
-            
-        # Prepare prompt
-        prompt = f"<s>{prompt} <Answer/>"
-        prompt_ids = self.tokenizer(
-            prompt, 
-            add_special_tokens=False, 
-            return_tensors="pt"
-        ).input_ids.to(self.device)
+            # Batch of images
+            images = image
+            prompts = prompt if isinstance(prompt, list) else [prompt] * len(images)
         
-        decoder_attention_mask = torch.ones_like(prompt_ids)
+        assert len(images) == len(prompts)
         
-        # Generate text
-        outputs = self.model.generate(
-            pixel_values=pixel_values.to(self.device),
-            decoder_input_ids=prompt_ids,
-            decoder_attention_mask=decoder_attention_mask,
-            min_length=1,
-            max_length=4096,
-            pad_token_id=self.tokenizer.pad_token_id,
-            eos_token_id=self.tokenizer.eos_token_id,
-            use_cache=True,
-            bad_words_ids=[[self.tokenizer.unk_token_id]],
-            return_dict_in_generate=True,
-            do_sample=False,
-            num_beams=1
+        # preprocess all images
+        processed_images = [resize_img(img) for img in images]
+        # generate all messages
+        all_messages = []
+        for img, question in zip(processed_images, prompts):
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "image": img,
+                        },
+                        {"type": "text", "text": question}
+                    ],
+                }
+            ]
+            all_messages.append(messages)
+        # prepare all texts
+        texts = [
+            self.processor.apply_chat_template(
+                msgs, tokenize=False, add_generation_prompt=True
+            )
+            for msgs in all_messages
+        ]
+        # collect all image inputs
+        all_image_inputs = []
+        all_video_inputs = None
+        for msgs in all_messages:
+            image_inputs, video_inputs = process_vision_info(msgs)
+            all_image_inputs.extend(image_inputs)
+        # prepare model inputs
+        inputs = self.processor(
+            text=texts,
+            images=all_image_inputs if all_image_inputs else None,
+            videos=all_video_inputs if all_video_inputs else None,
+            padding=True,
+            return_tensors="pt",
         )
+        inputs = inputs.to(self.model.device)
+        # inference
+        generated_ids = self.model.generate(
+            **inputs,
+            max_new_tokens=4096,
+            # repetition_penalty=1.05
+        )
+        generated_ids_trimmed = [
+            out_ids[len(in_ids):] 
+            for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
         
-        # Process the output
-        sequence = self.tokenizer.batch_decode(outputs.sequences, skip_special_tokens=False)[0]
-        sequence = sequence.replace(prompt, "").replace("<pad>", "").replace("</s>", "").strip()
-        
-        return sequence
+        results = self.processor.batch_decode(
+            generated_ids_trimmed, 
+            skip_special_tokens=True, 
+            clean_up_tokenization_spaces=False
+        )
+        # Return a single result for single image input
+        if not is_batch:
+            return results[0]
+        return results
+
 
 def process_element(image_path, model, element_type, save_dir=None):
     """Process a single element image (text, table, formula)
@@ -102,7 +132,7 @@ def process_element(image_path, model, element_type, save_dir=None):
     """
     # Load and prepare image
     pil_image = Image.open(image_path).convert("RGB")
-    pil_image = crop_margin(pil_image)
+    # pil_image = crop_margin(pil_image)
     
     # Select appropriate prompt based on element type
     if element_type == "table":
@@ -122,7 +152,7 @@ def process_element(image_path, model, element_type, save_dir=None):
     result = model.chat(prompt, pil_image)
     
     # Create recognition result in the same format as the document parser
-    recognition_result = [
+    recognition_results = [
         {
             "label": label,
             "text": result.strip(),
@@ -130,11 +160,10 @@ def process_element(image_path, model, element_type, save_dir=None):
     ]
     
     # Save results if save_dir is provided
-    if save_dir:
-        save_outputs(recognition_result, image_path, save_dir)
-        print(f"Results saved to {save_dir}")
+    save_outputs(recognition_results, pil_image, os.path.basename(image_path).split(".")[0], save_dir)
+    print(f"Results saved to {save_dir}")
     
-    return result, recognition_result
+    return result, recognition_results
 
 
 def main():
@@ -144,7 +173,7 @@ def main():
     parser.add_argument(
         "--element_type",
         type=str,
-        choices=["text", "table", "formula"],
+        choices=["text", "table", "formula", "code"],
         default="text",
         help="Type of element to process (text, table, formula)",
     )
