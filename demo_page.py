@@ -6,6 +6,7 @@ SPDX-License-Identifier: MIT
 import argparse
 import glob
 import os
+import sys
 
 import torch
 from PIL import Image
@@ -124,7 +125,8 @@ class DOLPHIN:
         return results
 
 
-def process_document(document_path, model, save_dir, max_batch_size=None, post_process=False):
+def process_document(document_path, model, save_dir, max_batch_size=None, processed_images_dir=None, post_process=False):
+  
     """Parse documents with two stages - Handles both images and PDFs"""
     file_ext = os.path.splitext(document_path)[1].lower()
     
@@ -146,7 +148,8 @@ def process_document(document_path, model, save_dir, max_batch_size=None, post_p
             
             # Process this page (don't save individual page results)
             json_path, recognition_results = process_single_image(
-                pil_image, model, save_dir, page_name, max_batch_size, save_individual=False, post_process=post_process
+
+                pil_image, model, save_dir, page_name, max_batch_size, save_individual=False, processed_images_dir=processed_images_dir, post_process=post_process
             )
             
             # Add page information to results
@@ -167,8 +170,8 @@ def process_document(document_path, model, save_dir, max_batch_size=None, post_p
         base_name = os.path.splitext(os.path.basename(document_path))[0]
         return process_single_image(pil_image, model, save_dir, base_name, max_batch_size, post_process=post_process)
 
+def process_single_image(image, model, save_dir, image_name, max_batch_size=None, save_individual=True, processed_images_dir=None, post_process=False):
 
-def process_single_image(image, model, save_dir, image_name, max_batch_size=None, save_individual=True, post_process=False):
     """Process a single image (either from file or converted from PDF page)
     
     Args:
@@ -187,7 +190,26 @@ def process_single_image(image, model, save_dir, image_name, max_batch_size=None
     # print(layout_output)
 
     # Stage 2: Element-level content parsing
-    recognition_results = process_elements(layout_output, image, model, max_batch_size, save_dir, image_name)
+
+    # Extract PDF name and page number for organized image saving
+    pdf_name = None
+    page_number = None
+    
+    # Check if this is a PDF page (format: "pdfname_page_001")
+    if "_page_" in image_name:
+        parts = image_name.split("_page_")
+        if len(parts) == 2:
+            pdf_name = parts[0]
+            try:
+                page_number = int(parts[1])
+            except ValueError:
+                page_number = None
+    else:
+        # For single images, use the image name as pdf_name
+        pdf_name = image_name
+    
+    padded_image, dims = prepare_image(image, pdf_name=pdf_name, page_number=page_number, processed_images_dir=processed_images_dir)
+    recognition_results = process_elements(layout_output, padded_image, model, max_batch_size, save_dir, image_name)
 
     # Save outputs only if requested (skip for PDF pages)
     json_path = None
@@ -234,6 +256,8 @@ def process_elements(layout_results, image, model, max_batch_size, save_dir=None
                         "label": label,
                         "text": f"![Figure](figures/{figure_filename})",
                         "figure_path": f"figures/{figure_filename}",
+                        "bbox": [orig_x1, orig_y1, orig_x2, orig_y2],  # Original image coordinates
+                        "padded_bbox": [x1, y1, x2, y2],  # Padded image coordinates
                         "bbox": [x1, y1, x2, y2],
                         "reading_order": reading_order,
                         "tags": tags,
@@ -243,6 +267,8 @@ def process_elements(layout_results, image, model, max_batch_size, save_dir=None
                     element_info = {
                         "crop": pil_crop,
                         "label": label,
+                        "bbox": [orig_x1, orig_y1, orig_x2, orig_y2],  # Original image coordinates
+                        "padded_bbox": [x1, y1, x2, y2],  # Padded image coordinates
                         "bbox": [x1, y1, x2, y2],
                         "reading_order": reading_order,
                         "tags": tags,
@@ -312,6 +338,7 @@ def process_element_batch(elements, model, prompt, max_batch_size=None):
             results.append({
                 "label": elem["label"],
                 "bbox": elem["bbox"],
+                "padded_bbox": elem["padded_bbox"],  # Padded coordinates
                 "text": result.strip(),
                 "reading_order": elem["reading_order"],
                 "tags": elem["tags"],
@@ -336,8 +363,33 @@ def main():
         default=4,
         help="Maximum number of document elements to parse in a single batch (default: 4)",
     )
+    
+    parser.add_argument(
+        "--processed_images_dir",
+        type=str,
+        default=None,
+        help="Directory to save processed images (default: from config or './processed_images_by_dolphin')",
+    )
+
     parser.add_argument("--post_process", action="store_true", help="Whether to apply post-processing to the output results")
     args = parser.parse_args()
+
+    # Determine processed_images_dir with fallback logic
+    processed_images_dir = args.processed_images_dir
+    if processed_images_dir is None:
+        # Try to get from config file
+        try:
+            # Add parent directory to path to access config
+            parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            sys.path.insert(0, parent_dir)
+            from config.config import PROCESSED_IMAGES_DIR
+            processed_images_dir = PROCESSED_IMAGES_DIR
+        except (ImportError, AttributeError):
+            processed_images_dir = None
+        
+        # If not in config, use hardcoded default
+        if processed_images_dir is None:
+            processed_images_dir = "./processed_images_by_dolphin"
 
     # Load Model
     model = DOLPHIN(args.model_path)
@@ -381,6 +433,7 @@ def main():
                 model=model,
                 save_dir=save_dir,
                 max_batch_size=args.max_batch_size,
+                processed_images_dir=processed_images_dir
                 post_process=args.post_process
             )
 

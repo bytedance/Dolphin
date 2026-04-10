@@ -7,6 +7,8 @@ import io
 import json
 import os
 import re
+import time
+import uuid
 from dataclasses import dataclass
 from typing import List, Tuple
 
@@ -215,12 +217,146 @@ def process_coordinates(coords, pil_image):
     x2 = int(coords[2] * w_ratio)
     y2 = int(coords[3] * h_ratio)
 
+def process_coordinates(coords, padded_image, dims: ImageDimensions, previous_box=None):
+    """Process and adjust coordinates
+
+    Args:
+        coords: Normalized coordinates [x1, y1, x2, y2]
+        padded_image: Padded image
+        dims: Image dimensions object
+        previous_box: Previous box coordinates for overlap adjustment
+
+    Returns:
+        tuple: (x1, y1, x2, y2, orig_x1, orig_y1, orig_x2, orig_y2, new_previous_box)
+    """
+    try:
+        # Convert normalized coordinates to absolute coordinates
+        x1, y1 = round(coords[0] / 896. * dims.padded_w), round(coords[1] / 896. * dims.padded_h)
+        x2, y2 = round(coords[2] / 896. * dims.padded_w) + 1, round(coords[3] / 896. * dims.padded_h) + 1
+
+        # Ensure coordinates are within image bounds before adjustment
+        x1 = max(0, min(x1, dims.padded_w - 1))
+        y1 = max(0, min(y1, dims.padded_h - 1))
+        x2 = max(0, min(x2, dims.padded_w))
+        y2 = max(0, min(y2, dims.padded_h))
+
+        # Ensure width and height are at least 1 pixel
+        if x2 <= x1:
+            x2 = min(x1 + 1, dims.padded_w)
+        if y2 <= y1:
+            y2 = min(y1 + 1, dims.padded_h)
+
+        # Ensure coordinates are still within image bounds after adjustment
+        x1 = max(0, min(x1, dims.padded_w - 1))
+        y1 = max(0, min(y1, dims.padded_h - 1))
+        x2 = max(0, min(x2, dims.padded_w))
+        y2 = max(0, min(y2, dims.padded_h))
+
+        # Ensure width and height are at least 1 pixel after adjustment
+        if x2 <= x1:
+            x2 = min(x1 + 1, dims.padded_w)
+        if y2 <= y1:
+            y2 = min(y1 + 1, dims.padded_h)
+
+        # Check for overlap with previous box and adjust
+        if previous_box is not None:
+            prev_x1, prev_y1, prev_x2, prev_y2 = previous_box
+            if (x1 < prev_x2 and x2 > prev_x1) and (y1 < prev_y2 and y2 > prev_y1):
+                y1 = prev_y2
+                # Ensure y1 is still valid
+                y1 = min(y1, dims.padded_h - 1)
+                # Make sure y2 is still greater than y1
+                if y2 <= y1:
+                    y2 = min(y1 + 1, dims.padded_h)
+
+        # Update previous box
+        new_previous_box = [x1, y1, x2, y2]
+
+        # Map to original coordinates
+        orig_x1, orig_y1, orig_x2, orig_y2 = map_to_original_coordinates(x1, y1, x2, y2, dims)
+
+        return x1, y1, x2, y2, orig_x1, orig_y1, orig_x2, orig_y2, new_previous_box
+    except Exception as e:
+        print(f"process_coordinates error: {str(e)}")
+        # Return safe values
+        orig_x1, orig_y1, orig_x2, orig_y2 = 0, 0, min(100, dims.original_w), min(100, dims.original_h)
+        return 0, 0, 100, 100, orig_x1, orig_y1, orig_x2, orig_y2, [0, 0, 100, 100]
+
+
+def prepare_image(image, pdf_name=None, page_number=None, processed_images_dir=None) -> Tuple[np.ndarray, ImageDimensions]:
+    """Load and prepare image with padding while maintaining aspect ratio
+
+    Args:
+        image: PIL image
+
+    Returns:
+        tuple: (padded_image, image_dimensions)
+    """
+    try:
+        # Convert PIL image to OpenCV format
+        image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        original_h, original_w = image.shape[:2]
+
+        # Calculate padding to make square image
+        max_size = max(original_h, original_w)
+        top = (max_size - original_h) // 2
+        bottom = max_size - original_h - top
+        left = (max_size - original_w) // 2
+        right = max_size - original_w - left
+
+        # Apply padding
+        padded_image = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=(0, 0, 0))
+
+         # Save the processed padded image with organized filename
+        try:
+            if processed_images_dir is None:
+                processed_images_dir = "./processed_images"
+            # Create PDF-specific subdirectory if pdf_name is provided
+            if pdf_name:
+                pdf_dir = os.path.join(processed_images_dir, pdf_name)
+                os.makedirs(pdf_dir, exist_ok=True)
+                
+                # Generate organized filename
+                if page_number is not None:
+                    unique_filename = f"page-{page_number}.png"
+                else:
+                    unique_filename = f"{pdf_name}.png"
+                    
+                processed_image_path = os.path.join(pdf_dir, unique_filename)
+            else:
+                # Fallback to original naming scheme for non-PDF files
+                os.makedirs(processed_images_dir, exist_ok=True)
+                timestamp = int(time.time() * 1000)  # milliseconds since epoch
+                unique_id = str(uuid.uuid4())[:8]  # first 8 characters of UUID
+                unique_filename = f"processed_{timestamp}_{unique_id}.png"
+                processed_image_path = os.path.join(processed_images_dir, unique_filename)
+
+            cv2.imwrite(processed_image_path, padded_image)
+            print(f"✓ Saved processed padded image: {unique_filename}")
+            
+        except Exception as save_error:
+            # Don't let saving errors affect the main functionality
+            print(f"Warning: Could not save processed image: {str(save_error)}")
+
+
+        padded_h, padded_w = padded_image.shape[:2]
+
+        dimensions = ImageDimensions(original_w=original_w, original_h=original_h, padded_w=padded_w, padded_h=padded_h)
+
+        return padded_image, dimensions
+    except Exception as e:
+        print(f"prepare_image error: {str(e)}")
+        # Create a minimal valid image and dimensions
+        h, w = image.height, image.width
+        dimensions = ImageDimensions(original_w=w, original_h=h, padded_w=w, padded_h=h)
+        # Return a black image of the same size
+        return np.zeros((h, w, 3), dtype=np.uint8), dimensions
+      
     x1 = max(0, min(x1, original_w - 1))
     y1 = max(0, min(y1, original_h - 1))
     x2 = max(x1 + 1, min(x2, original_w))
     y2 = max(y1 + 1, min(y2, original_h))
     return x1, y1, x2, y2
-
 
 def setup_output_dirs(save_dir):
     """Create necessary output directories"""
@@ -428,7 +564,7 @@ def assign_colors_to_elements(num_elements):
         # Cycle through the palette if we have more elements than colors
         color_idx = i % len(palette)
         colors.append(palette[color_idx])
-    
+        
     return colors
 
 def resize_img(image, max_size=1600, min_size=28):
