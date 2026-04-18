@@ -6,13 +6,18 @@ SPDX-License-Identifier: MIT
 import argparse
 import glob
 import os
+import sys
 
+import numpy as np
 import torch
 from PIL import Image
 from qwen_vl_utils import process_vision_info
 from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 
 from utils.utils import *
+
+# Force line-buffered stdout so progress is visible in real time
+sys.stdout.reconfigure(line_buffering=True)
 
 
 class DOLPHIN:
@@ -100,23 +105,30 @@ class DOLPHIN:
         inputs = inputs.to(self.model.device)
 
         # inference
-        generated_ids = self.model.generate(
-            **inputs,
-            max_new_tokens=4096,
-            do_sample=False,
-            temperature=None,
-            # repetition_penalty=1.05
-        )
+        with torch.inference_mode():
+            generated_ids = self.model.generate(
+                **inputs,
+                max_new_tokens=4096,
+                do_sample=False,
+                temperature=None,
+                use_cache=True,
+                # repetition_penalty=1.05
+            )
         generated_ids_trimmed = [
-            out_ids[len(in_ids):] 
+            out_ids[len(in_ids):]
             for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
-        
+
         results = self.processor.batch_decode(
-            generated_ids_trimmed, 
-            skip_special_tokens=True, 
+            generated_ids_trimmed,
+            skip_special_tokens=True,
             clean_up_tokenization_spaces=False
         )
+
+        # Free VRAM between batches to avoid fragmentation on smaller GPUs
+        del inputs, generated_ids, generated_ids_trimmed
+        if self.device == "cuda":
+            torch.cuda.empty_cache()
 
         # Return a single result for single image input
         if not is_batch:
@@ -138,7 +150,13 @@ def process_document(document_path, model, save_dir, max_batch_size=None, post_p
         
         # Process each page
         for page_idx, pil_image in enumerate(images):
-            print(f"Processing page {page_idx + 1}/{len(images)}")
+            # Skip blank pages (std dev of grayscale pixel values near zero)
+            gray = np.array(pil_image.convert("L"), dtype=np.float32)
+            if gray.std() < 8.0:
+                print(f"Skipping page {page_idx + 1}/{len(images)} (blank)", flush=True)
+                continue
+
+            print(f"Processing page {page_idx + 1}/{len(images)}", flush=True)
             
             # Generate output name for this page
             base_name = os.path.splitext(os.path.basename(document_path))[0]
@@ -205,7 +223,7 @@ def process_elements(layout_results, image, model, max_batch_size, save_dir=None
         layout_results_list = [([0, 0, *image.size], 'distorted_page', [])]
     # Check for bbox overlap - if too many overlaps, treat as distorted page
     elif len(layout_results_list) > 1 and check_bbox_overlap(layout_results_list, image):
-        print("Falling back to distorted_page mode due to high bbox overlap")
+        print("Falling back to distorted_page mode due to high bbox overlap", flush=True)
         layout_results_list = [([0, 0, *image.size], 'distorted_page', [])]
         
     tab_elements = []      
@@ -260,7 +278,7 @@ def process_elements(layout_results, image, model, max_batch_size, save_dir=None
             reading_order += 1
 
         except Exception as e:
-            print(f"Error processing bbox with label {label}: {str(e)}")
+            print(f"Error processing bbox with label {label}: {str(e)}", flush=True)
             continue
 
     recognition_results = figure_results.copy()
@@ -370,11 +388,11 @@ def main():
     setup_output_dirs(save_dir)
 
     total_samples = len(document_files)
-    print(f"\nTotal files to process: {total_samples}")
+    print(f"\nTotal files to process: {total_samples}", flush=True)
 
     # Process All Document Files
     for file_path in document_files:
-        print(f"\nProcessing {file_path}")
+        print(f"\nProcessing {file_path}", flush=True)
         try:
             json_path, recognition_results = process_document(
                 document_path=file_path,
@@ -384,10 +402,10 @@ def main():
                 post_process=args.post_process
             )
 
-            print(f"Processing completed. Results saved to {save_dir}")
+            print(f"Processing completed. Results saved to {save_dir}", flush=True)
 
         except Exception as e:
-            print(f"Error processing {file_path}: {str(e)}")
+            print(f"Error processing {file_path}: {str(e)}", flush=True)
             continue
 
 

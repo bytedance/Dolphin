@@ -100,19 +100,19 @@ class MarkdownConverter:
             'list', 'equ', 'tab', 'fig'
         }
 
-        # Define replacements for special formulas
+        # Define replacements for special formulas (use raw strings for LaTeX)
         self.replace_dict = {
-            '\\bm': '\mathbf ',
-            '\eqno': '\quad ',
-            '\quad': '\quad ',
-            '\leq': '\leq ',
-            '\pm': '\pm ',
-            '\\varmathbb': '\mathbb ',
-            '\in fty': '\infty',
-            '\mu': '\mu ',
-            '\cdot': '\cdot ',
-            '\langle': '\langle ',
-            '\pm': '\pm '
+            r'\bm': r'\mathbf ',
+            r'\eqno': r'\quad ',
+            r'\quad': r'\quad ',
+            r'\leq': r'\leq ',
+            r'\pm': r'\pm ',
+            r'\varmathbb': r'\mathbb ',
+            r'\in fty': r'\infty',
+            r'\mu': r'\mu ',
+            r'\cdot': r'\cdot ',
+            r'\langle': r'\langle ',
+            r'\pm': r'\pm '
         }
     
     def try_remove_newline(self, text: str) -> str:
@@ -295,7 +295,7 @@ class MarkdownConverter:
                 text = replace_repeated_cdots(text)
                 return f"{text}\n\n"
 
-            text = text.strip('$').rstrip("\ ").replace(r'\upmu', r'\mu')
+            text = text.strip('$').rstrip(r"\ ").replace(r'\upmu', r'\mu')
             for key, value in self.replace_dict.items():
                 text = text.replace(key, value)
             processed_text = '$$' + text + '$$'
