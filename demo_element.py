@@ -8,11 +8,11 @@ import glob
 import os
 
 import cv2
-import torch
 from PIL import Image
 from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 from qwen_vl_utils import process_vision_info
 
+from utils.device_utils import move_model_to_available_device
 from utils.utils import *
 
 
@@ -29,13 +29,7 @@ class DOLPHIN:
         self.model.eval()
         
         # Set device and precision
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model.to(self.device)
-
-        if self.device == "cuda":
-            self.model = self.model.bfloat16()
-        else:
-            self.model = self.model.float()
+        self.model, self.device = move_model_to_available_device(self.model)
         
         # set tokenizer
         self.tokenizer = self.processor.tokenizer
