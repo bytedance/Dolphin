@@ -7,8 +7,6 @@ import io
 import json
 import os
 import re
-from dataclasses import dataclass
-from typing import List, Tuple
 
 import cv2
 import numpy as np

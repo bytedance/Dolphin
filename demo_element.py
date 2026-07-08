@@ -7,7 +7,6 @@ import argparse
 import glob
 import os
 
-import cv2
 import torch
 from PIL import Image
 from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
