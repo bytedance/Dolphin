@@ -190,7 +190,7 @@ def process_single_layout(pil_image, model, save_dir, image_name):
                         "tags": tags,
                     })
         reading_order += 1
-    json_path = save_outputs(recognition_results, pil_image, image_name, save_dir)
+    save_outputs(recognition_results, pil_image, image_name, save_dir)
 
 
 def main():
